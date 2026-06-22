@@ -4,9 +4,9 @@ export const siteConfig = {
     name: "All Day Shopping",
     tagline: "India's trusted store for electronics, books, stationery, and garments",
     email: {
-      support: "support@allday-shopping.com",
-      privacy: "privacy@allday-shopping.com",
-      legal: "legal@allday-shopping.com",
+      support: "info@allday-shopping.com",
+      privacy: "info@allday-shopping.com",
+      legal: "info@allday-shopping.com",
       general: "info@allday-shopping.com",
     },
     phone: "+964 742 44 763",

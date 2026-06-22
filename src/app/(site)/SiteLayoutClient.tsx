@@ -1,7 +1,5 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Geist } from "next/font/google";
-import "../css/style.css";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 import { ModalProvider } from "../context/QuickViewModalContext";
@@ -15,50 +13,39 @@ import PreviewSliderModal from "@/components/Common/PreviewSlider";
 import ScrollToTop from "@/components/Common/ScrollToTop";
 import PreLoader from "@/components/Common/PreLoader";
 
-const geistSans = Geist({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-geist-sans",
-});
-
 export default function SiteLayoutClient({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setTimeout(() => setLoading(false), 1000);
+    const timer = setTimeout(() => setLoading(false), 1000);
+    return () => clearTimeout(timer);
   }, []);
 
+  if (loading) {
+    return <PreLoader />;
+  }
+
   return (
-    <html lang="en" className={geistSans.variable} suppressHydrationWarning={true}>
-      <body className={`${geistSans.className} font-geist`}>
-        {loading ? (
-          <PreLoader />
-        ) : (
-          <>
-            <ThemeProvider>
-              <ReduxProvider>
-                <CartModalProvider>
-                  <ModalProvider>
-                    <PreviewSliderProvider>
-                      <Header />
-                      {children}
-                      <QuickViewModal />
-                      <CartSidebarModal />
-                      <PreviewSliderModal />
-                    </PreviewSliderProvider>
-                  </ModalProvider>
-                </CartModalProvider>
-              </ReduxProvider>
-              <ScrollToTop />
-              <Footer />
-            </ThemeProvider>
-          </>
-        )}
-      </body>
-    </html>
+    <ThemeProvider>
+      <ReduxProvider>
+        <CartModalProvider>
+          <ModalProvider>
+            <PreviewSliderProvider>
+              <Header />
+              {children}
+              <QuickViewModal />
+              <CartSidebarModal />
+              <PreviewSliderModal />
+            </PreviewSliderProvider>
+          </ModalProvider>
+        </CartModalProvider>
+      </ReduxProvider>
+      <ScrollToTop />
+      <Footer />
+    </ThemeProvider>
   );
 }

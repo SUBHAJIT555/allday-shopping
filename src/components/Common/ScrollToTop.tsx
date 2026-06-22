@@ -32,15 +32,18 @@ export default function ScrollToTop() {
     <>
       {isVisible && (
         <button
+          type="button"
           onClick={scrollToTop}
-          className={`fixed bottom-8 right-8 z-999 h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-t from-blue-dark to-blue-light shadow-lg shadow-brand-md transition-all duration-200 hover:shadow-xl hover:shadow-brand-md active:scale-95 ${
+          aria-label="Scroll to top"
+          className={`fixed bottom-8 right-8 z-999 flex h-11 w-11 items-center justify-center rounded-xl border border-blue-light-4/60 bg-white text-blue shadow-[0_8px_24px_-8px_rgba(147,51,234,0.35)] transition-all duration-200 hover:border-blue hover:bg-blue-light-5 hover:shadow-[0_12px_32px_-8px_rgba(147,51,234,0.45)] active:scale-95 ${
             isVisible ? "flex" : "hidden"
           }`}
         >
           <svg
-            className="fill-white w-5 h-5"
+            className="h-5 w-5 fill-blue"
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 512 512"
+            aria-hidden
           >
             <path d="M233.4 105.4c12.5-12.5 32.8-12.5 45.3 0l192 192c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L256 173.3 86.6 342.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l192-192z" />
           </svg>
