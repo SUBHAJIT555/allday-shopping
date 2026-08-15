@@ -12,8 +12,12 @@ const nextConfig = {
     return {
       beforeFiles: [
         {
+          source: '/mail.php',
+          destination: 'http://localhost/ecom/mail.php',
+        },
+        {
           source: '/api/submit.php',
-          destination: 'http://localhost/ecom/api/submit.php',
+          destination: 'http://localhost/ecom/mail.php',
         },
       ],
       afterFiles: [],
