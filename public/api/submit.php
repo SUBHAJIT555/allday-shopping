@@ -18,7 +18,6 @@ set_exception_handler(function ($e) {
     exit;
 });
 
-
 // --- CORS ---
 $origin  = $_SERVER['HTTP_ORIGIN'] ?? '';
 $allowed = [
@@ -36,22 +35,19 @@ header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-W
 header('Access-Control-Max-Age: 86400');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
-// --- Timezone ---
 date_default_timezone_set('Asia/Kolkata');
 mb_internal_encoding('UTF-8');
 header('Content-Type: application/json; charset=utf-8');
 
-// --- Autoload ---
 require __DIR__ . '/../../vendor/autoload.php';
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 use Dotenv\Dotenv;
 
-$dotenv = Dotenv::createImmutable(dirname(__DIR__,2));
+$dotenv = Dotenv::createImmutable(dirname(__DIR__, 2));
 $dotenv->load();
 
-
-// --- Parse request body (handle both FormData and JSON) ---
+// --- Parse request body (FormData or JSON) ---
 $inputData = [];
 $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
 if (strpos($contentType, 'application/json') !== false) {
@@ -61,112 +57,181 @@ if (strpos($contentType, 'application/json') !== false) {
     $inputData = $_POST;
 }
 
-// --- Helpers ---
-function v(string $key, string $default = '', array $data = []): string {
+function v(string $key, string $default = ''): string {
     global $inputData;
-    $source = !empty($data) ? $data : $inputData;
-    return isset($source[$key]) ? trim((string)$source[$key]) : $default;
+    if (!isset($inputData[$key])) return $default;
+    $val = trim((string)$inputData[$key]);
+    return $val !== '' ? $val : $default;
 }
+
+function firstFilled(array $keys): string {
+    foreach ($keys as $key) {
+        $val = v($key);
+        if ($val !== '') return $val;
+    }
+    return '';
+}
+
 function clean(?string $s): string {
     return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 }
-function required(array $arr, array $data = []): ?string {
+
+function required(array $arr): ?string {
     global $inputData;
-    $source = !empty($data) ? $data : $inputData;
     foreach ($arr as $k => $label) {
-        if (!isset($source[$k]) || $source[$k] === '') return "$label is required";
+        if (!isset($inputData[$k]) || trim((string)$inputData[$k]) === '') {
+            return "$label is required";
+        }
     }
     return null;
 }
 
-// --- Request validation ---
+function kvRow(string $label, string $value, bool $multiline = false): string {
+    if ($value === '') $value = '—';
+    $body = $multiline ? nl2br(clean($value)) : clean($value);
+    return '<p style="margin:0 0 8px;"><strong>'.clean($label).':</strong> '.($multiline ? '<br>' : '').$body.'</p>';
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['error' => 'Only POST allowed.']);
     exit;
 }
 
+/**
+ * Website forms that POST here:
+ * 1. contact    — /contact
+ * 2. newsletter — homepage newsletter
+ * 3. quote      — /checkout request for quote
+ *
+ * UI-only forms (not emailed): header search, shop filters, cart coupon.
+ */
 $formType = v('formType');
-if (!in_array($formType, ['contact','newsletter','quote'], true)) {
+$allowedTypes = ['contact', 'newsletter', 'quote'];
+if (!in_array($formType, $allowedTypes, true)) {
     http_response_code(400);
-    echo json_encode(['error'=>'Invalid formType.']);
+    echo json_encode(['error' => 'Invalid formType.']);
     exit;
 }
 
-// --- Field validation ---
 if ($formType === 'contact') {
+    if ($msg = required(['name' => 'Name', 'email' => 'Email'])) {
+        http_response_code(422);
+        echo json_encode(['error' => $msg]);
+        exit;
+    }
+} elseif ($formType === 'newsletter') {
+    if ($msg = required(['email' => 'Email'])) {
+        http_response_code(422);
+        echo json_encode(['error' => $msg]);
+        exit;
+    }
+} elseif ($formType === 'quote') {
     if ($msg = required([
-        'name'=>'Name',
-        'email'=>'Email'
-    ])) { http_response_code(422); echo json_encode(['error'=>$msg]); exit; }
-}
-elseif ($formType === 'newsletter') {
-    if ($msg = required(['email'=>'Email'])) { http_response_code(422); echo json_encode(['error'=>$msg]); exit; }
-}
-elseif ($formType === 'quote') {
-    if ($msg = required([
-        'billing_first_name'=>'Billing First Name',
-        'billing_last_name'=>'Billing Last Name',
-        'billing_email'=>'Billing Email',
-        'billing_phone'=>'Billing Phone',
-        'billing_address'=>'Billing Address',
-        'billing_town'=>'Billing Town',
-        'cart_items'=>'Cart Items (JSON)',
-        'cart_total'=>'Cart Total',
-        'order_total'=>'Order Total',
-    ])) { http_response_code(422); echo json_encode(['error'=>$msg]); exit; }
+        'billing_first_name' => 'Billing First Name',
+        'billing_last_name'  => 'Billing Last Name',
+        'billing_email'      => 'Billing Email',
+        'billing_phone'      => 'Billing Phone',
+        'billing_address'    => 'Billing Address',
+        'billing_town'       => 'Billing Town',
+        'cart_items'         => 'Cart Items (JSON)',
+        'cart_total'         => 'Cart Total',
+        'order_total'        => 'Order Total',
+    ])) {
+        http_response_code(422);
+        echo json_encode(['error' => $msg]);
+        exit;
+    }
 }
 
-// --- Email validation ---
-$email = v('email', v('billing_email', v('shipping_email')));
+$email = firstFilled(['email', 'billing_email', 'shipping_email']);
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     http_response_code(422);
-    echo json_encode(['error'=>'Invalid email.']);
+    echo json_encode(['error' => 'Invalid email.']);
     exit;
 }
 
-// --- SMTP CONFIG ---
-$smtpHost = $_ENV['SMTP_HOST'];
-$smtpUser = $_ENV['SMTP_USER'];
-$smtpPass = $_ENV['SMTP_PASS'];
-$smtpPort = $_ENV['SMTP_PORT'];
+$smtpHost   = $_ENV['SMTP_HOST'];
+$smtpUser   = $_ENV['SMTP_USER'];
+$smtpPass   = $_ENV['SMTP_PASS'];
+$smtpPort   = $_ENV['SMTP_PORT'];
 $smtpSecure = $_ENV['SMTP_SECURE'];
 
 $toAddresses = [['info@allday-shopping.com', 'All Day Shopping']];
-$fromEmail = $smtpUser;
-$fromName  = 'All Day Shopping';
+$fromEmail   = $smtpUser;
+$fromName    = 'All Day Shopping';
 
-// --- Brand styling ---
-$brandName = 'All Day Shopping';
-$tagline   = "India's trusted store for electronics, books, stationery, and garments.";
+$brandName  = 'All Day Shopping';
+$tagline    = "India's trusted store for electronics, books, stationery, and garments.";
 $brandColor = '#9333ea';
-$muted = '#6b7280';
-$bg = '#f9fafb';
-$cardBg = '#ffffff';
-$border = '#e5e7eb';
+$border     = '#e5e7eb';
 
-// --- Subject ---
+$replyName = firstFilled(['name', 'billing_first_name', 'firstName']);
+if ($replyName === '') $replyName = $email;
+
 switch ($formType) {
     case 'contact':
-        $subject = "New Contact Inquiry - " . v('name');
+        $subject = 'New Contact Inquiry - ' . v('name');
         break;
     case 'newsletter':
-        $subject = "New Newsletter Signup - " . $email;
+        $subject = 'New Newsletter Signup - ' . $email;
         break;
     case 'quote':
-        $subject = "New Quote Request - " . v('billing_first_name') . ' ' . v('billing_last_name');
+        $subject = 'New Quote Request - ' . v('billing_first_name') . ' ' . v('billing_last_name');
         break;
     default:
-        $subject = "Form Submission";
+        $subject = 'Form Submission';
         break;
 }
 
-
-// --- Dynamic content per form type ---
 $mainContent = '';
-// --- Build cart HTML ---
-$cartHtml = '';
-if ($formType === 'quote') {
+$alt = strip_tags($subject) . "\n\n";
+
+if ($formType === 'contact') {
+    $fullName = v('name', trim(v('firstName') . ' ' . v('lastName')));
+    $mainContent = '
+    <tr>
+      <td style="padding:0 24px 24px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid '.$border.';border-radius:4px;">
+          <tr><td style="background:#f3f4f6;padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-weight:600;color:'.$brandColor.';">Contact Details</td></tr>
+          <tr><td style="padding:12px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#333;">
+            '.kvRow('First Name', v('firstName')).'
+            '.kvRow('Last Name', v('lastName')).'
+            '.kvRow('Full Name', $fullName).'
+            '.kvRow('Email', v('email')).'
+            '.kvRow('Phone', v('phone')).'
+            '.kvRow('Subject', v('subject')).'
+            '.kvRow('Message', v('message'), true).'
+          </td></tr>
+        </table>
+      </td>
+    </tr>';
+    $alt .= "First Name: ".v('firstName')."\n";
+    $alt .= "Last Name: ".v('lastName')."\n";
+    $alt .= "Name: ".$fullName."\n";
+    $alt .= "Email: ".v('email')."\n";
+    $alt .= "Phone: ".v('phone')."\n";
+    $alt .= "Subject: ".v('subject')."\n";
+    $alt .= "Message: ".v('message')."\n";
+}
+
+elseif ($formType === 'newsletter') {
+    $mainContent = '
+    <tr>
+      <td style="padding:0 24px 24px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid '.$border.';border-radius:4px;">
+          <tr><td style="background:#f3f4f6;padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-weight:600;color:'.$brandColor.';">Newsletter Subscription</td></tr>
+          <tr><td style="padding:12px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#333;">
+            '.kvRow('Email', $email).'
+          </td></tr>
+        </table>
+      </td>
+    </tr>';
+    $alt .= "Email: ".$email."\n";
+}
+
+elseif ($formType === 'quote') {
+    $cartHtml = '';
     $cart = json_decode(v('cart_items'), true);
     if (is_array($cart) && count($cart)) {
         $cartHtml .= '
@@ -177,38 +242,46 @@ if ($formType === 'quote') {
             <th align="right" style="padding:8px;border:1px solid '.$border.';font-family:Arial,Helvetica,sans-serif;">Price</th>
           </tr>';
         foreach ($cart as $item) {
+            $itemName  = isset($item['name']) ? (string)$item['name'] : '';
+            $itemQty   = isset($item['quantity']) ? (string)$item['quantity'] : '';
+            $itemPrice = isset($item['price']) ? (string)$item['price'] : '';
             $cartHtml .= '
             <tr>
-              <td align="left" style="padding:8px;border:1px solid '.$border.';font-family:Arial,Helvetica,sans-serif;">'.clean($item['name']).'</td>
-              <td align="center" style="padding:8px;border:1px solid '.$border.';font-family:Arial,Helvetica,sans-serif;">'.clean($item['quantity']).'</td>
-              <td align="right" style="padding:8px;border:1px solid '.$border.';font-family:Arial,Helvetica,sans-serif;">'.clean($item['price']).'</td>
+              <td align="left" style="padding:8px;border:1px solid '.$border.';font-family:Arial,Helvetica,sans-serif;">'.clean($itemName).'</td>
+              <td align="center" style="padding:8px;border:1px solid '.$border.';font-family:Arial,Helvetica,sans-serif;">'.clean($itemQty).'</td>
+              <td align="right" style="padding:8px;border:1px solid '.$border.';font-family:Arial,Helvetica,sans-serif;">'.clean($itemPrice).'</td>
             </tr>';
+            $alt .= $itemName.' x '.$itemQty.' — '.$itemPrice."\n";
         }
         $cartHtml .= '</table>';
     }
+
+    $billingTownLine = v('billing_address').', '.v('billing_town');
+    if (v('billing_state')) $billingTownLine .= ', '.v('billing_state');
+    if (v('postcode') || v('billing_postcode')) {
+        $billingTownLine .= ' - '.firstFilled(['postcode', 'billing_postcode']);
+    }
+
     $billingInfo = '
       <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border:1px solid '.$border.';border-radius:4px;">
-        <tr><td style="background:#f3f4f6;padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-weight:600;color:#9333ea;">Billing Info</td></tr>
+        <tr><td style="background:#f3f4f6;padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-weight:600;color:'.$brandColor.';">Billing Info</td></tr>
         <tr><td style="padding:10px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#333;">
           <p><strong>'.clean(v('billing_first_name').' '.v('billing_last_name')).'</strong></p>
           <p>'.clean(v('billing_email')).'</p>
           <p>Phone: '.clean(v('billing_phone')).'</p>
-          <p>'.clean(v('billing_address')).', '.clean(v('billing_town'));
-    if (v('billing_state')) $billingInfo .= ', '.clean(v('billing_state'));
-    if (v('postcode')) $billingInfo .= ' - '.clean(v('postcode'));
-    $billingInfo .= '</p>';
+          <p>'.clean($billingTownLine).'</p>';
     if (v('notes')) {
         $billingInfo .= '<p><strong>Notes:</strong> '.nl2br(clean(v('notes'))).'</p>';
     }
     $billingInfo .= '
         </td></tr>
       </table>';
-    
+
     $shippingInfo = '';
     if (v('shipping_first_name') || v('shipping_address')) {
         $shippingInfo = '
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border:1px solid '.$border.';border-radius:4px;">
-            <tr><td style="background:#f3f4f6;padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-weight:600;color:#9333ea;">Shipping Info</td></tr>
+            <tr><td style="background:#f3f4f6;padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-weight:600;color:'.$brandColor.';">Shipping Info</td></tr>
             <tr><td style="padding:10px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#333;">';
         if (v('shipping_first_name')) {
             $shippingInfo .= '<p><strong>'.clean(v('shipping_first_name').' '.v('shipping_last_name')).'</strong></p>';
@@ -229,14 +302,14 @@ if ($formType === 'quote') {
             </td></tr>
           </table>';
     }
-    
+
     $mainContent = '
     <tr>
       <td style="padding:0 24px 24px;">
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
           <tr>
             <td class="stack-column" valign="top" width="50%" style="padding:10px;">'.$billingInfo.'</td>';
-    if ($shippingInfo) {  
+    if ($shippingInfo) {
         $mainContent .= '<td class="stack-column" valign="top" width="50%" style="padding:10px;">'.$shippingInfo.'</td>';
     }
     $mainContent .= '
@@ -247,51 +320,27 @@ if ($formType === 'quote') {
     <tr>
       <td style="padding:0 24px 24px;">
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border:1px solid '.$border.';border-radius:4px;">
-          <tr><td style="background:#f3f4f6;padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-weight:600;color:#9333ea;">Order Summary</td></tr>
+          <tr><td style="background:#f3f4f6;padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-weight:600;color:'.$brandColor.';">Order Summary</td></tr>
           <tr><td style="padding:10px;">'.$cartHtml.'
             <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;border-collapse:collapse;">
-              <tr><td align="right" style="padding:6px 0;font-family:Arial,Helvetica,sans-serif;font-weight:600;color:#9333ea;">CART SUBTOTAL:</td><td align="right" style="padding:6px 0;">'.clean(v('cart_total')).'</td></tr>
-              <tr><td align="right" style="padding:6px 0;font-family:Arial,Helvetica,sans-serif;font-weight:600;color:#9333ea;">SHIPPING AND HANDLING:</td><td align="right" style="padding:6px 0;">FREE SHIPPING</td></tr>
-              <tr><td align="right" style="padding:6px 0;font-family:Arial,Helvetica,sans-serif;font-weight:600;color:#9333ea;">ORDER TOTAL:</td><td align="right" style="padding:6px 0;">'.clean(v('order_total')).'</td></tr>
+              <tr><td align="right" style="padding:6px 0;font-family:Arial,Helvetica,sans-serif;font-weight:600;color:'.$brandColor.';">CART SUBTOTAL:</td><td align="right" style="padding:6px 0;">'.clean(v('cart_total')).'</td></tr>
+              <tr><td align="right" style="padding:6px 0;font-family:Arial,Helvetica,sans-serif;font-weight:600;color:'.$brandColor.';">SHIPPING AND HANDLING:</td><td align="right" style="padding:6px 0;">FREE SHIPPING</td></tr>
+              <tr><td align="right" style="padding:6px 0;font-family:Arial,Helvetica,sans-serif;font-weight:600;color:'.$brandColor.';">ORDER TOTAL:</td><td align="right" style="padding:6px 0;">'.clean(v('order_total')).'</td></tr>
             </table>
           </td></tr>
         </table>
       </td>
     </tr>';
-}
-else if($formType === 'contact') {
-    $mainContent = '
-    <tr>
-      <td style="padding:0 24px 24px;">
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid '.$border.';border-radius:4px;">
-          <tr><td style="background:#f3f4f6;padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-weight:600;color:#9333ea;">Contact Details</td></tr>
-          <tr><td style="padding:12px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#333;">
-            <p><strong>Name:</strong> '.clean(v('name')).'</p>
-            <p><strong>Email:</strong> '.clean(v('email')).'</p>
-            <p><strong>Phone:</strong> '.clean(v('phone')).'</p>
-            <p><strong>Subject:</strong> '.clean(v('subject')).'</p>
-            <p><strong>Message:</strong><br>'.nl2br(clean(v('message'))).'</p>
-          </td></tr>
-        </table>
-      </td>
-    </tr>';
-}
-else{
-    $mainContent = '
-    <tr>
-      <td style="padding:0 24px 24px;">
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid '.$border.';border-radius:4px;">
-          <tr><td style="background:#f3f4f6;padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-weight:600;color:#9333ea;">Newsletter Subscription</td></tr>
-          <tr><td style="padding:12px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#333;">
-            <p><strong>Email:</strong> '.clean($email).'</p>
-          </td></tr>
-        </table>
-      </td>
-    </tr>';
+
+    $alt .= "Billing: ".v('billing_first_name')." ".v('billing_last_name')."\n";
+    $alt .= "Email: ".v('billing_email')."\n";
+    $alt .= "Phone: ".v('billing_phone')."\n";
+    $alt .= "Address: ".$billingTownLine."\n";
+    if (v('notes')) $alt .= "Notes: ".v('notes')."\n";
+    $alt .= "Cart total: ".v('cart_total')."\n";
+    $alt .= "Order total: ".v('order_total')."\n";
 }
 
-
-// --- HTML email template (Outlook-safe) ---
 ob_start(); ?>
 <!DOCTYPE html>
 <html lang="en" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:v="urn:schemas-microsoft-com:vml">
@@ -322,23 +371,21 @@ ob_start(); ?>
         <table width="600" cellpadding="0" cellspacing="0" border="0" role="presentation" style="width:600px;max-width:100%;background:#ffffff;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">
           <tr>
             <td align="center" style="padding:30px 10px 20px;">
-              <h1 style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:22px;color:#9333ea;font-weight:700;"><?= clean($brandName) ?></h1>
+              <h1 style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:22px;color:<?= $brandColor ?>;font-weight:700;"><?= clean($brandName) ?></h1>
               <p style="margin:6px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6b7280;"><?= clean($tagline) ?></p>
             </td>
           </tr>
           <tr><td style="height:1px;background:#e5e7eb;"></td></tr>
           <tr>
             <td align="center" style="padding:20px;">
-              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:600;color:#9333ea;"><?= clean($subject) ?></p>
-              <p style="margin:4px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#6b7280;">Received at <?= date('Y-m-d H:i:s') ?> (server time)</p>
+              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:600;color:<?= $brandColor ?>;"><?= clean($subject) ?></p>
+              <p style="margin:4px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#6b7280;">Received at <?= date('Y-m-d H:i:s') ?> (IST)</p>
             </td>
           </tr>
-
           <?= $mainContent ?>
-
           <tr>
             <td align="center" style="padding:14px 20px;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#6b7280;">
-              This email was generated from the <strong><?= clean($brandName) ?></strong> website.
+              This email was generated from the <strong><?= clean($brandName) ?></strong> website and sent to info@allday-shopping.com.
             </td>
           </tr>
         </table>
@@ -350,15 +397,6 @@ ob_start(); ?>
 <?php
 $html = ob_get_clean();
 
-// --- Alt text ---
-$alt = strip_tags($subject) . "\n\n";
-if ($formType === 'quote') {
-    $alt .= "Billing: " . v('billing_first_name') . " " . v('billing_last_name') . "\n";
-    $alt .= "Email: " . v('billing_email') . "\n";
-    $alt .= "Phone: " . v('billing_phone') . "\n";
-}
-
-// --- Send Email ---
 $mail = new PHPMailer(true);
 try {
     $mail->isSMTP();
@@ -373,7 +411,7 @@ try {
 
     $mail->setFrom($fromEmail, $fromName);
     foreach ($toAddresses as [$addr, $nm]) $mail->addAddress($addr, $nm);
-    $mail->addReplyTo($email, v('name', v('billing_first_name', $email)));
+    $mail->addReplyTo($email, $replyName);
 
     $mail->isHTML(true);
     $mail->Subject = $subject;
@@ -381,10 +419,9 @@ try {
     $mail->AltBody = $alt;
     $mail->send();
 
-    echo json_encode(['success'=>true,'message'=>'Message sent.']);
+    echo json_encode(['success' => true, 'message' => 'Message sent.']);
 } catch (Exception $e) {
     error_log('Mailer Error: '.$mail->ErrorInfo);
     http_response_code(500);
-    echo json_encode(['error'=>'Failed to send email.']);
+    echo json_encode(['error' => 'Failed to send email.']);
 }
-
