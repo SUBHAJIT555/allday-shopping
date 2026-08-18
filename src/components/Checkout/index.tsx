@@ -11,6 +11,17 @@ import PaymentMethod from "./PaymentMethod";
 
 const PENDING_ORDER_KEY = "ads_pending_order_id";
 
+function preferredUpiMode() {
+  if (typeof navigator === "undefined") {
+    return "QR";
+  }
+  return /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  )
+    ? "INTENT"
+    : "QR";
+}
+
 function LockIcon({ className }: { className?: string }) {
   return (
     <svg width="16" height="16" viewBox="0 0 20 20" fill="none" className={className} aria-hidden>
@@ -37,7 +48,6 @@ const Checkout = () => {
     resolver: zodResolver(quoteSchema),
     defaultValues: {
       paymentMethod: "upi",
-      upiId: "",
     },
   });
 
@@ -65,7 +75,7 @@ const Checkout = () => {
         body: JSON.stringify({
           action: "create_session",
           payment_method: data.paymentMethod,
-          upi_id: data.upiId || "",
+          upi_mode: preferredUpiMode(),
           billing_first_name: data.firstName,
           billing_last_name: data.lastName,
           billing_email: data.email,
@@ -146,7 +156,7 @@ const Checkout = () => {
             <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
               <div className="w-full lg:max-w-[670px]">
                 <Billing register={register} errors={errors} />
-                <PaymentMethod register={register} errors={errors} watch={watch} />
+                <PaymentMethod register={register} watch={watch} />
 
                 <div className="mt-6 overflow-hidden rounded-2xl border border-blue-light-4/60 bg-white shadow-[0_8px_30px_-12px_rgba(147,51,234,0.1)]">
                   <div className="border-b border-blue-light-4/50 bg-gradient-to-r from-blue-light-5/80 to-white px-5 py-4 sm:px-6">

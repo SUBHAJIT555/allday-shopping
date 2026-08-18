@@ -186,7 +186,7 @@ const Pay = () => {
                   {qrSrc && (
                     <>
                       <p className="text-custom-sm font-semibold text-dark mb-3">
-                        Scan this QR from another phone
+                        Scan this QR with GPay, PhonePe, Paytm, or any UPI app
                       </p>
                       <div className="mx-auto mb-4 w-[220px] rounded-2xl border border-blue-light-4 bg-white p-3">
                         <img src={qrSrc} alt="UPI QR code" className="h-auto w-full" />

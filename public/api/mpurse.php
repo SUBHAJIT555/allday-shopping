@@ -72,11 +72,17 @@ if (!function_exists('openssl_encrypt')) {
     fail(500, 'PHP OpenSSL is required for payment encryption. Use C:/xampp/php/php.exe (yarn php:api).');
 }
 
+if (isGatewayWebhook($inputData)) {
+    handleGatewayWebhook();
+}
+
 $action = v('action', 'create_session');
 if ($action === 'create_session') {
     startCheckoutPayment();
 } elseif ($action === 'status' || $action === 'confirm') {
     confirmPaymentStatus();
+} elseif ($action === 'webhook') {
+    handleGatewayWebhook();
 } else {
     http_response_code(400);
     echo json_encode(array('success' => false, 'error' => 'Invalid action.'));
@@ -294,7 +300,8 @@ function hostedCheckoutUrl($session)
         $url = $links['web'];
     }
     if ($url === '' && $token !== '') {
-        $url = 'https://secure-sdk.mpurse.io/?id=' . rawurlencode($token);
+        $host = rtrim(envVal('MPURSE_CHECKOUT_HOST', 'https://secure-sdk.mpurse.io'), '/');
+        $url = $host . '/?id=' . rawurlencode($token);
     }
     return is_string($url) ? $url : '';
 }
@@ -618,7 +625,7 @@ function isUpiStarted($httpCode, $result)
     $status = strtoupper(gatewayText($result, array('status')));
     $txnId = gatewayText($result, array('txn_id', 'txnId', 'transactionId', 'txnRef'));
     $intent = gatewayText($result, array('intent_url', 'intentUrl', 'upi_intent', 'upiIntent'));
-    $qr = gatewayText($result, array('qr_data', 'qrData'));
+    $qr = gatewayText($result, array('qr_Data', 'qr_data', 'qrData'));
     $msg = strtolower(gatewayText($result, array('message', 'statusDescription', 'error')));
     if (strpos($msg, 'required') !== false || strpos($msg, 'invalid') !== false || strpos($msg, 'connector error') !== false || strpos($msg, 'request failed') !== false) {
         return false;
@@ -630,46 +637,63 @@ function isUpiStarted($httpCode, $result)
         || $qr !== '';
 }
 
-function createUpiPayment()
+function preferredUpiMode()
 {
-    pruneOldOrders();
-    $checkout = collectCheckout();
-    $keys = mpurseKeys();
-    $upiId = normalizeUpiId(v('upi_id', v('upiId')));
-    if (!isValidUpiId($upiId)) {
-        fail(422, 'Enter a valid UPI ID, like name@okaxis or 9876543210@ybl');
+    $mode = strtoupper(v('upi_mode', v('paymentMode')));
+    if (in_array($mode, array('QR', 'INTENT'), true)) {
+        return $mode;
     }
-    $payeeVpa = normalizeUpiId(envVal('MPURSE_PAYEE_VPA', '8990100626.mp@nsdlpbma'));
-    if (!isValidUpiId($payeeVpa)) {
-        fail(500, 'Merchant UPI ID is not configured.');
+    $ua = isset($_SERVER['HTTP_USER_AGENT']) ? (string) $_SERVER['HTTP_USER_AGENT'] : '';
+    if (preg_match('/Android|iPhone|iPad|iPod|Mobile/i', $ua)) {
+        return 'INTENT';
+    }
+    return 'QR';
+}
+
+function upiDirectPayload($checkout, $paymentMode, $payeeVpa)
+{
+    $note = preg_replace('/\s+/', ' ', (string) $checkout['description']);
+    $note = trim((string) $note);
+    if ($note === '') {
+        $note = 'All Day Shopping order';
     }
 
-    $base = array(
-        'order_id' => $checkout['order_id'],
+    return array(
+        'payeeVPA' => $payeeVpa,
+        'paymentMode' => $paymentMode,
         'txnAmount' => $checkout['amount'],
-        'channelId' => 'WEBUSER',
-        'txnNote' => 'Payment',
+        'channelId' => envVal('MPURSE_CHANNEL_ID', 'WEBUSER'),
+        'txnNote' => substr($note, 0, 50),
+        'order_id' => $checkout['order_id'],
         'merchantType' => envVal('MPURSE_MERCHANT_TYPE', 'AGGREGATE'),
         'expiryTime' => envVal('MPURSE_EXPIRY_MINUTES', '10'),
         'cust_name' => $checkout['cust_name'],
         'cust_mobilenumber' => $checkout['phone'],
         'currency' => 'INR',
+        'param_a' => envVal('MPURSE_PARAM_A', ''),
+        'param_b' => envVal('MPURSE_PARAM_B', ''),
+        'param_c' => envVal('MPURSE_PARAM_C', ''),
     );
-    $mcc = envVal('MPURSE_MCC', '8999');
-    $collect = array_merge($base, array(
-        'paymentMode' => 'COLLECT',
-        'payerVPA' => $upiId,
-        'payeeVPA' => $payeeVpa,
-        'payeeName' => envVal('MPURSE_PAYEE_NAME', 'KANIKA ENTERPRISES'),
-        'payeeMCC' => $mcc,
-        'mcc' => $mcc,
-    ));
+}
 
-    list($httpCode, $result) = callUpiDirect($keys, $collect);
-    $mode = 'COLLECT';
+function createUpiPayment()
+{
+    pruneOldOrders();
+    $checkout = collectCheckout();
+    $keys = mpurseKeys();
+    $payeeVpa = normalizeUpiId(envVal('MPURSE_PAYEE_VPA', '8990100626.mp@nsdlpbma'));
+    if (!isValidUpiId($payeeVpa)) {
+        fail(500, 'Merchant UPI ID is not configured.');
+    }
+
+    $preferred = preferredUpiMode();
+    $fallback = $preferred === 'QR' ? 'INTENT' : 'QR';
+    list($httpCode, $result) = callUpiDirect($keys, upiDirectPayload($checkout, $preferred, $payeeVpa));
+    $mode = $preferred;
     if (!isUpiStarted($httpCode, $result)) {
-        list($httpCode, $result) = callUpiDirect($keys, array_merge($base, array('paymentMode' => 'INTENT')));
-        $mode = 'INTENT';
+        $checkout['order_id'] = 'ADS' . strtoupper(bin2hex(random_bytes(8)));
+        list($httpCode, $result) = callUpiDirect($keys, upiDirectPayload($checkout, $fallback, $payeeVpa));
+        $mode = $fallback;
         if (!isUpiStarted($httpCode, $result)) {
             $message = gatewayText($result, array('statusDescription', 'message', 'error'));
             fail(502, $message !== '' ? $message : 'Could not start UPI payment. Try again in a moment.');
@@ -678,7 +702,7 @@ function createUpiPayment()
 
     $txnId = gatewayText($result, array('txn_id', 'txnId', 'transactionId', 'txnRef'));
     $intent = gatewayText($result, array('intent_url', 'intentUrl', 'upi_intent', 'upiIntent'));
-    $qr = $mode === 'COLLECT' ? '' : gatewayText($result, array('qr_data', 'qrData'));
+    $qr = gatewayText($result, array('qr_Data', 'qr_data', 'qrData'));
     $status = strtoupper(gatewayText($result, array('status')));
 
     saveOrder(array(
@@ -691,7 +715,7 @@ function createUpiPayment()
         'intent_url' => $intent,
         'payment_method' => 'upi',
         'payment_mode' => $mode,
-        'payer_vpa' => $mode === 'COLLECT' ? $upiId : '',
+        'payer_vpa' => '',
         'emailed' => false,
         'created_at' => date('c'),
         'billing' => array(
@@ -715,7 +739,7 @@ function createUpiPayment()
         'amount' => $checkout['amount'],
         'qr_data' => $qr,
         'intent_url' => $intent,
-        'payer_vpa' => $mode === 'COLLECT' ? $upiId : '',
+        'payer_vpa' => '',
         'payment_mode' => $mode,
         'txn_id' => $txnId,
     ));
@@ -792,37 +816,86 @@ function fetchGatewayStatus($lookupId)
     return is_array($decoded) ? $decoded : array();
 }
 
-function confirmPaymentStatus()
+function isGatewayWebhook($data)
 {
-    $orderId = preg_replace('/[^A-Za-z0-9_-]/', '', v('order_id'));
+    if (!is_array($data)) {
+        return false;
+    }
+    if (isset($data['cart_items']) || isset($data['billing_first_name']) || isset($data['payment_method'])) {
+        return false;
+    }
+    $action = isset($data['action']) ? strtolower(trim((string) $data['action'])) : '';
+    if (in_array($action, array('create_session', 'status', 'confirm'), true)) {
+        return false;
+    }
+    $orderId = gatewayText($data, array('orderId', 'order_id'));
     if ($orderId === '') {
-        fail(422, 'Missing order id.');
+        return false;
     }
-
-    $order = loadOrder($orderId);
-    $gateway = fetchGatewayStatus($orderId);
-    $savedTxnId = gatewayText($order ?: array(), array('txn_id', 'txnId'));
-    if (isStatusLookupMiss($gateway) && $savedTxnId !== '' && $savedTxnId !== $orderId) {
-        $byTxn = fetchGatewayStatus($savedTxnId);
-        if ($byTxn && !isStatusLookupMiss($byTxn)) {
-            $gateway = $byTxn;
-        }
+    if ($action === 'webhook') {
+        return true;
     }
+    return gatewayText($data, array('txnId', 'txn_id')) !== ''
+        || gatewayText($data, array('statusCode', 'status_code')) !== ''
+        || in_array(strtoupper(gatewayText($data, array('status'))), array('SUCCESS', 'FAILED', 'FAILURE'), true);
+}
 
-    $lookupMiss = isStatusLookupMiss($gateway);
+function resolveGatewayStatus($gateway, $webhookHint = array())
+{
     $rawStatus = gatewayText($gateway, array('status'));
+    if ($rawStatus === '') {
+        $rawStatus = gatewayText($webhookHint, array('status'));
+    }
+    $statusCode = gatewayText($gateway, array('statusCode', 'status_code'));
+    if ($statusCode === '') {
+        $statusCode = gatewayText($webhookHint, array('statusCode', 'status_code'));
+    }
+    if ($rawStatus === '' && $statusCode === '00') {
+        $rawStatus = 'SUCCESS';
+    }
+    $status = normalizeStatus($rawStatus);
+    if ($status === 'pending' && $statusCode === '00' && strtoupper($rawStatus) === 'SUCCESS') {
+        $status = 'success';
+    }
+    return array($status, $rawStatus);
+}
+
+function amountsMatch($left, $right)
+{
+    if ($left === '' || $left === null || $right === '' || $right === null) {
+        return true;
+    }
+    return abs((float) $left - (float) $right) < 0.05;
+}
+
+function applyGatewayUpdate($orderId, $gateway, $lookupMiss)
+{
+    $order = loadOrder($orderId);
+    $savedTxnId = gatewayText($order ?: array(), array('txn_id', 'txnId'));
+    list($status, $rawStatus) = resolveGatewayStatus($gateway);
+    $message = '';
+
     if ($lookupMiss) {
         $status = 'pending';
         $rawStatus = $order && !empty($order['status']) ? (string) $order['status'] : 'PENDING';
-        $message = '';
     } else {
-        $status = normalizeStatus($rawStatus);
-        $message = gatewayText($gateway, array('message', 'statusDescription'));
+        $message = gatewayText($gateway, array('message', 'statusDescription', 'status_description'));
+        if ($status === 'success' && $order && !amountsMatch($order['amount'], isset($gateway['amount']) ? $gateway['amount'] : null)) {
+            $status = 'pending';
+            $message = 'Payment amount does not match this order.';
+        }
     }
 
     $txnId = gatewayText($gateway, array('txn_id', 'txnId'));
     if ($txnId === '') {
         $txnId = $savedTxnId;
+    }
+    if ($txnId !== '') {
+        $gateway['txn_id'] = $txnId;
+    }
+    $rrn = gatewayText($gateway, array('rrn'));
+    if ($rrn !== '') {
+        $gateway['rrn'] = $rrn;
     }
 
     if ($order && !$lookupMiss) {
@@ -841,7 +914,7 @@ function confirmPaymentStatus()
         sendBarePaidEmail($orderId, $gateway);
     }
 
-    ok(array(
+    return array(
         'order_id' => $orderId,
         'status' => $status,
         'gateway_status' => $rawStatus,
@@ -854,7 +927,59 @@ function confirmPaymentStatus()
         'payer_vpa' => $order && !empty($order['payer_vpa']) ? $order['payer_vpa'] : '',
         'payment_method' => $order && !empty($order['payment_method']) ? $order['payment_method'] : '',
         'payment_mode' => $order && !empty($order['payment_mode']) ? $order['payment_mode'] : '',
-    ));
+    );
+}
+
+function lookupGatewayForOrder($orderId, $extraTxnId = '')
+{
+    $order = loadOrder($orderId);
+    $gateway = fetchGatewayStatus($orderId);
+    $savedTxnId = gatewayText($order ?: array(), array('txn_id', 'txnId'));
+    if (isStatusLookupMiss($gateway) && $savedTxnId !== '' && $savedTxnId !== $orderId) {
+        $byTxn = fetchGatewayStatus($savedTxnId);
+        if ($byTxn && !isStatusLookupMiss($byTxn)) {
+            $gateway = $byTxn;
+        }
+    }
+    if ((!$gateway || isStatusLookupMiss($gateway)) && $extraTxnId !== '' && $extraTxnId !== $orderId && $extraTxnId !== $savedTxnId) {
+        $byHook = fetchGatewayStatus($extraTxnId);
+        if ($byHook && !isStatusLookupMiss($byHook)) {
+            $gateway = $byHook;
+        }
+    }
+    return array($order, $gateway, isStatusLookupMiss($gateway));
+}
+
+function confirmPaymentStatus()
+{
+    $orderId = preg_replace('/[^A-Za-z0-9_-]/', '', v('order_id'));
+    if ($orderId === '') {
+        fail(422, 'Missing order id.');
+    }
+    list($order, $gateway, $lookupMiss) = lookupGatewayForOrder($orderId);
+    ok(applyGatewayUpdate($orderId, $gateway, $lookupMiss));
+}
+
+function handleGatewayWebhook()
+{
+    global $inputData;
+    $orderId = preg_replace('/[^A-Za-z0-9_-]/', '', gatewayText($inputData, array('orderId', 'order_id')));
+    if ($orderId === '') {
+        fail(422, 'Missing order id.');
+    }
+
+    $hookTxn = gatewayText($inputData, array('txnId', 'txn_id'));
+    list($order, $gateway, $lookupMiss) = lookupGatewayForOrder($orderId, $hookTxn);
+    if ($lookupMiss || !$gateway) {
+        $gateway = $inputData;
+        $lookupMiss = false;
+    } else {
+        $gateway = array_merge($gateway, $inputData);
+    }
+
+    $payload = applyGatewayUpdate($orderId, $gateway, $lookupMiss);
+    echo json_encode(array_merge(array('success' => true, 'received' => true), $payload));
+    exit;
 }
 
 function findAutoload()

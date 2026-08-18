@@ -1,20 +1,19 @@
 import React from "react";
-import { UseFormRegister, FieldErrors, UseFormWatch } from "react-hook-form";
+import { UseFormRegister, UseFormWatch } from "react-hook-form";
 import { QuoteFormData } from "@/lib/schemas";
 
 const PAYMENT_OPTIONS = [
-  { id: "upi", value: "upi", label: "UPI", hint: "Pay with any UPI ID" },
+  { id: "upi", value: "upi", label: "UPI", hint: "Scan QR or pay from any UPI app" },
   { id: "card", value: "card", label: "Debit / Credit card", hint: "Visa, Mastercard, RuPay" },
   { id: "netbanking", value: "netbanking", label: "Net banking", hint: "All major Indian banks" },
 ] as const;
 
 type PaymentMethodProps = {
   register: UseFormRegister<QuoteFormData>;
-  errors: FieldErrors<QuoteFormData>;
   watch: UseFormWatch<QuoteFormData>;
 };
 
-const PaymentMethod = ({ register, errors, watch }: PaymentMethodProps) => {
+const PaymentMethod = ({ register, watch }: PaymentMethodProps) => {
   const method = watch("paymentMethod");
 
   return (
@@ -53,31 +52,6 @@ const PaymentMethod = ({ register, errors, watch }: PaymentMethodProps) => {
             </span>
           </label>
         ))}
-
-        {method === "upi" && (
-          <div className="pt-2">
-            <label htmlFor="upiId" className="mb-2 block text-custom-sm font-semibold text-dark">
-              UPI ID <span className="text-red">*</span>
-            </label>
-            <input
-              type="text"
-              id="upiId"
-              autoComplete="off"
-              placeholder="yourname@okaxis"
-              {...register("upiId")}
-              className={`w-full rounded-full border bg-white px-4 py-2.5 text-sm outline-none transition-all duration-200 placeholder:text-dark-4 focus:border-blue focus:ring-2 focus:ring-blue-light-4 ${
-                errors.upiId ? "border-red" : "border-blue-light-4"
-              }`}
-            />
-            {errors.upiId ? (
-              <p className="mt-1 text-custom-sm text-red">{errors.upiId.message}</p>
-            ) : (
-              <p className="mt-1 text-custom-xs text-dark-4">
-                Example: 9876543210@ybl, name@okaxis, name@paytm
-              </p>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
