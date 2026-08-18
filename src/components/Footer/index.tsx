@@ -188,19 +188,15 @@ function FooterContactBody({
 
 function FooterBottom({ year }: { year: number }) {
   return (
-    <div className="relative z-1 border-t border-blue-light-4/40 bg-gradient-to-r from-blue-dark via-blue to-blue-light">
-      <div
-        className="pointer-events-none absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.05\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-60"
-        aria-hidden
-      />
+    <div className="relative z-1 border-t border-blue-light-4/40 bg-white">
       <div className="relative mx-auto flex max-w-[1170px] flex-wrap items-center justify-between gap-5 px-4 py-5 sm:px-8 xl:px-0 xl:py-6">
-        <p className="text-custom-sm font-medium text-white/95">
+        <p className="text-custom-sm font-medium text-dark">
           &copy; {year}. All rights reserved by {siteConfig.brand.legalName}.
         </p>
 
         <div className="flex flex-wrap items-center gap-4">
-          <p className="text-custom-sm font-medium text-white/80">We accept</p>
-          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
+          <p className="text-custom-sm font-medium text-dark-4">We accept</p>
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-blue-light-4/60 bg-blue-light-5/40 px-4 py-2.5">
             <Image src="/images/payment/payment-01.svg" alt="Visa" width={66} height={22} />
             <Image src="/images/payment/payment-02.svg" alt="PayPal" width={18} height={21} />
             <Image src="/images/payment/payment-03.svg" alt="Mastercard" width={33} height={24} />

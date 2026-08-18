@@ -92,9 +92,9 @@ const About = () => {
                 Welcome to {siteConfig.brand.name}
               </h1>
               <p className="mx-auto max-w-3xl text-custom-sm leading-relaxed text-dark-4 sm:text-base">
-                {siteConfig.brand.name} is a homegrown Indian brand built for Indian shoppers. We offer electronics,
-                stationery, books, and garments at honest prices, with a focus on quality, value, and reliable
-                service across India.
+                {siteConfig.brand.name} is operated by {siteConfig.brand.legalName}, a homegrown Indian brand built
+                for Indian shoppers. We offer electronics, stationery, books, and garments at honest prices, with a
+                focus on quality, value, and reliable service across India.
               </p>
             </div>
           </div>
@@ -191,9 +191,10 @@ function AboutStoryBody() {
   return (
     <div className="space-y-4 px-6 py-6 text-custom-sm leading-relaxed text-dark-4 sm:px-8 sm:py-7 sm:text-base">
       <p>
-        {siteConfig.brand.name} was born in India with one goal: to give Indian customers a trusted place to
-        shop for electronics, stationery, books, and fashion at honest prices. We started as a small team
-        focused on the Indian market and have grown by putting quality and customer trust first.
+        {siteConfig.brand.name} is owned and operated by {siteConfig.brand.legalName}. We were born in India
+        with one goal: to give Indian customers a trusted place to shop for electronics, stationery, books, and
+        fashion at honest prices. We started as a small team focused on the Indian market and have grown by
+        putting quality and customer trust first.
       </p>
       <p>
         We work with trusted suppliers and brands to bring you mobile accessories, smart gadgets, computer

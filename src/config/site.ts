@@ -9,7 +9,7 @@ export const siteConfig = {
       legal: "info@allday-shopping.com",
       general: "info@allday-shopping.com",
     },
-    legalName: "KANIKA ENTERPRISES CHETAN",
+    legalName: "KANIKA ENTERPRISES",
     address: {
       street: "Shop No. C-A12, Shudhanshu Chambers, Near Railway Station",
       city: "Kalyan West",
