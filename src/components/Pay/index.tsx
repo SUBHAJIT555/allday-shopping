@@ -9,6 +9,7 @@ import { removeAllItemsFromCart } from "@/redux/features/cart-slice";
 import Breadcrumb from "../Common/Breadcrumb";
 
 const PENDING_ORDER_KEY = "ads_pending_order_id";
+const HOSTED_CHECKOUT_URL_KEY = "ads_hosted_checkout_url";
 
 type PayView = "loading" | "pay" | "success" | "failed" | "missing";
 
@@ -37,11 +38,51 @@ function resolvePayStatus(result: StatusPayload) {
   return status;
 }
 
+function isSafeHostedCheckoutUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && parsed.hostname.endsWith("mpurse.io");
+  } catch {
+    return false;
+  }
+}
+
+function isPhoneBrowser() {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+  return /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
+}
+
+function qrImageSrc(qrData?: string, intentUrl?: string) {
+  if (qrData) {
+    return qrData.startsWith("data:")
+      ? qrData
+      : `data:image/png;base64,${qrData}`;
+  }
+  if (intentUrl) {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=240x240&ecc=M&data=${encodeURIComponent(intentUrl)}`;
+  }
+  return "";
+}
+
 const Pay = () => {
   const searchParams = useSearchParams();
   const dispatch = useDispatch<AppDispatch>();
   const [view, setView] = useState<PayView>("loading");
   const [details, setDetails] = useState<StatusPayload>({});
+  const [isPhone, setIsPhone] = useState(false);
+  const [hostedUrl, setHostedUrl] = useState("");
+
+  useEffect(() => {
+    setIsPhone(isPhoneBrowser());
+    const stored = sessionStorage.getItem(HOSTED_CHECKOUT_URL_KEY) || "";
+    if (stored && isSafeHostedCheckoutUrl(stored)) {
+      setHostedUrl(stored);
+    }
+  }, []);
 
   useEffect(() => {
     const orderId =
@@ -52,6 +93,10 @@ const Pay = () => {
     if (!orderId) {
       setView("missing");
       return;
+    }
+
+    if (searchParams.get("flow") === "hosted") {
+      setView("pay");
     }
 
     const poll = { cancelled: false, timer: 0, attempts: 0 };
@@ -85,6 +130,7 @@ const Pay = () => {
       if (next === "success") {
         dispatch(removeAllItemsFromCart());
         sessionStorage.removeItem(PENDING_ORDER_KEY);
+        sessionStorage.removeItem(HOSTED_CHECKOUT_URL_KEY);
       }
       setView(next);
     };
@@ -140,11 +186,7 @@ const Pay = () => {
     details.amount !== undefined && details.amount !== null && details.amount !== ""
       ? `₹${Number(details.amount).toLocaleString("en-IN")}`
       : "";
-  const qrSrc = details.qr_data
-    ? details.qr_data.startsWith("data:")
-      ? details.qr_data
-      : `data:image/png;base64,${details.qr_data}`
-    : "";
+  const qrSrc = qrImageSrc(details.qr_data, details.intent_url);
 
   return (
     <>
@@ -174,7 +216,17 @@ const Pay = () => {
                     </p>
                   )}
 
-                  {details.intent_url && (
+                  {hostedUrl && (
+                    <button
+                      type="button"
+                      onClick={() => window.location.assign(hostedUrl)}
+                      className="mb-6 inline-flex w-full items-center justify-center rounded-full bg-blue px-6 py-3.5 text-custom-sm font-semibold text-white"
+                    >
+                      Continue to secure card / net banking
+                    </button>
+                  )}
+
+                  {isPhone && details.intent_url && (
                     <a
                       href={details.intent_url}
                       className="mb-6 inline-flex w-full items-center justify-center rounded-full bg-blue px-6 py-3.5 text-custom-sm font-semibold text-white"
@@ -186,7 +238,9 @@ const Pay = () => {
                   {qrSrc && (
                     <>
                       <p className="text-custom-sm font-semibold text-dark mb-3">
-                        Scan this QR with GPay, PhonePe, Paytm, or any UPI app
+                        {isPhone
+                          ? "Or scan this QR from another phone"
+                          : "There is no UPI app on a computer. Scan this QR with GPay, PhonePe, Paytm, or any UPI app on your phone."}
                       </p>
                       <div className="mx-auto mb-4 w-[220px] rounded-2xl border border-blue-light-4 bg-white p-3">
                         <img src={qrSrc} alt="UPI QR code" className="h-auto w-full" />
@@ -194,7 +248,7 @@ const Pay = () => {
                     </>
                   )}
 
-                  {!details.payer_vpa && !qrSrc && !details.intent_url && (
+                  {!details.payer_vpa && !qrSrc && !details.intent_url && !hostedUrl && (
                     <p className="text-red text-custom-sm mb-4" role="alert">
                       {details.error || details.message || "Payment details are not available. Go back to checkout and try again."}
                     </p>

@@ -199,7 +199,7 @@ function FooterBottom({ year }: { year: number }) {
       />
       <div className="relative mx-auto flex max-w-[1170px] flex-wrap items-center justify-between gap-5 px-4 py-5 sm:px-8 xl:px-0 xl:py-6">
         <p className="text-custom-sm font-medium text-white/95">
-          &copy; {year}. All rights reserved by {siteConfig.brand.name}.
+          &copy; {year}. All rights reserved by {siteConfig.brand.legalName}.
         </p>
 
         <div className="flex flex-wrap items-center gap-4">

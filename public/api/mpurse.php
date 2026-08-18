@@ -288,22 +288,102 @@ function paymentMode()
     return 'web';
 }
 
+function firstHttpsUrl($value)
+{
+    if (is_string($value) && preg_match('#^https://#i', $value)) {
+        return $value;
+    }
+    if (!is_array($value)) {
+        return '';
+    }
+    foreach ($value as $item) {
+        $found = firstHttpsUrl($item);
+        if ($found !== '') {
+            return $found;
+        }
+    }
+    return '';
+}
+
+function withSessionId($url, $token)
+{
+    if ($url === '' || $token === '') {
+        return $url;
+    }
+    $parts = parse_url($url);
+    $query = array();
+    if (!empty($parts['query'])) {
+        parse_str($parts['query'], $query);
+    }
+    if (empty($query['id'])) {
+        $query['id'] = $token;
+    }
+    if (empty($query['session_token'])) {
+        $query['session_token'] = $token;
+    }
+    $host = isset($parts['host']) ? $parts['host'] : 'secure-sdk.mpurse.io';
+    $scheme = isset($parts['scheme']) ? $parts['scheme'] : 'https';
+    $path = isset($parts['path']) && $parts['path'] !== '' ? $parts['path'] : '/';
+    return $scheme . '://' . $host . $path . '?' . http_build_query($query);
+}
+
 function hostedCheckoutUrl($session)
 {
-    $token = isset($session['session_token']) ? (string) $session['session_token'] : '';
-    $links = isset($session['payment_links']) && is_array($session['payment_links']) ? $session['payment_links'] : array();
+    if (!is_array($session)) {
+        return '';
+    }
+
+    $token = gatewayText($session, array('session_token', 'sessionToken', 'id'));
+    $sources = array($session);
+    foreach (array('data', 'result', 'payload', 'sdk_payload') as $nested) {
+        if (isset($session[$nested]) && is_array($session[$nested])) {
+            $sources[] = $session[$nested];
+            if (isset($session[$nested]['payload']) && is_array($session[$nested]['payload'])) {
+                $sources[] = $session[$nested]['payload'];
+            }
+        }
+    }
+
     $mode = paymentMode();
     $url = '';
-    if (isset($links[$mode]) && is_string($links[$mode]) && $links[$mode] !== '') {
-        $url = $links[$mode];
-    } elseif (isset($links['web']) && is_string($links['web'])) {
-        $url = $links['web'];
+    foreach ($sources as $source) {
+        $links = isset($source['payment_links']) ? $source['payment_links'] : null;
+        if (is_array($links)) {
+            foreach (array($mode, strtoupper($mode), 'web', 'WEB', 'desktop', 'Desktop') as $key) {
+                if (isset($links[$key])) {
+                    $found = firstHttpsUrl($links[$key]);
+                    if ($found !== '') {
+                        $url = $found;
+                        break 2;
+                    }
+                }
+            }
+            $found = firstHttpsUrl($links);
+            if ($found !== '') {
+                $url = $found;
+                break;
+            }
+        } elseif (is_string($links)) {
+            $found = firstHttpsUrl($links);
+            if ($found !== '') {
+                $url = $found;
+                break;
+            }
+        }
+
+        $direct = gatewayText($source, array('checkout_url', 'payment_url', 'redirect_url', 'paymentPageUrl'));
+        if ($direct !== '' && preg_match('#^https://#i', $direct)) {
+            $url = $direct;
+            break;
+        }
     }
+
     if ($url === '' && $token !== '') {
         $host = rtrim(envVal('MPURSE_CHECKOUT_HOST', 'https://secure-sdk.mpurse.io'), '/');
         $url = $host . '/?id=' . rawurlencode($token);
     }
-    return is_string($url) ? $url : '';
+
+    return withSessionId($url, $token);
 }
 
 function alphaName($value, $fallback)
@@ -501,8 +581,7 @@ function startCheckoutPayment()
 {
     $method = strtolower(v('payment_method', 'upi'));
     if ($method === 'card' || $method === 'netbanking') {
-        createHostedSession($method);
-        return;
+        fail(422, 'Card and net banking are not available yet. Please pay with UPI.');
     }
     createUpiPayment();
 }
@@ -660,6 +739,7 @@ function upiDirectPayload($checkout, $paymentMode, $payeeVpa)
 
     return array(
         'payeeVPA' => $payeeVpa,
+        'payeeName' => envVal('MPURSE_PAYEE_NAME', 'KANIKA ENTERPRISES CHETAN'),
         'paymentMode' => $paymentMode,
         'txnAmount' => $checkout['amount'],
         'channelId' => envVal('MPURSE_CHANNEL_ID', 'WEBUSER'),
@@ -786,7 +866,17 @@ function isStatusLookupMiss($gateway)
 function normalizeStatus($status)
 {
     $value = strtolower(trim((string) $status));
-    if (in_array($value, array('success', 'successful', 'paid', 'captured', 'completed'), true)) {
+    if (in_array($value, array(
+        'success',
+        'successful',
+        'paid',
+        'captured',
+        'completed',
+        'charged',
+        'authorized',
+        'txn_success',
+        '00',
+    ), true)) {
         return 'success';
     }
     if (in_array($value, array('failed', 'failure', 'fail', 'cancelled', 'canceled', 'expired', 'declined'), true)) {
@@ -795,25 +885,41 @@ function normalizeStatus($status)
     return 'pending';
 }
 
+function decodeStatusPayload($decoded)
+{
+    if (!is_array($decoded) || !$decoded) {
+        return array();
+    }
+    try {
+        $keys = mpurseKeys();
+        $plain = decodeGatewayBody($decoded, $keys['aes_key']);
+        return is_array($plain) && $plain ? $plain : $decoded;
+    } catch (Throwable $e) {
+        return $decoded;
+    }
+}
+
 function fetchGatewayStatus($lookupId)
 {
     $lookupId = trim((string) $lookupId);
     if ($lookupId === '') {
         return array();
     }
+
     $url = rtrim(envVal(
         'MPURSE_STATUS_URL',
         'https://services.mpurse.io/mpurse/super-switch/v1/payments/status'
     ), '/') . '/' . rawurlencode($lookupId);
 
     list($httpCode, $decoded) = curlJson('GET', $url, array('Content-Type: application/json'));
+    $got = decodeStatusPayload($decoded);
     if ($httpCode === 404) {
         return array('status' => 'pending', 'message' => 'Payment not found');
     }
-    if ($httpCode >= 500) {
-        return is_array($decoded) && $decoded ? $decoded : array('status' => 'pending');
+    if ($httpCode >= 500 && !$got) {
+        return array('status' => 'pending');
     }
-    return is_array($decoded) ? $decoded : array();
+    return is_array($got) ? $got : array();
 }
 
 function isGatewayWebhook($data)
@@ -854,8 +960,11 @@ function resolveGatewayStatus($gateway, $webhookHint = array())
         $rawStatus = 'SUCCESS';
     }
     $status = normalizeStatus($rawStatus);
-    if ($status === 'pending' && $statusCode === '00' && strtoupper($rawStatus) === 'SUCCESS') {
+    if ($status === 'pending' && $statusCode === '00') {
         $status = 'success';
+        if ($rawStatus === '') {
+            $rawStatus = 'SUCCESS';
+        }
     }
     return array($status, $rawStatus);
 }
@@ -908,6 +1017,11 @@ function applyGatewayUpdate($orderId, $gateway, $lookupMiss)
             $sent = sendOrderPaidEmail($order, $gateway);
             $order['emailed'] = $sent;
             $order['paid_at'] = date('c');
+            if (!$sent) {
+                $order['mail_error'] = 'Could not send confirmation email.';
+            } else {
+                unset($order['mail_error']);
+            }
         }
         saveOrder($order);
     } elseif ($status === 'success') {
@@ -933,21 +1047,44 @@ function applyGatewayUpdate($orderId, $gateway, $lookupMiss)
 function lookupGatewayForOrder($orderId, $extraTxnId = '')
 {
     $order = loadOrder($orderId);
-    $gateway = fetchGatewayStatus($orderId);
-    $savedTxnId = gatewayText($order ?: array(), array('txn_id', 'txnId'));
-    if (isStatusLookupMiss($gateway) && $savedTxnId !== '' && $savedTxnId !== $orderId) {
-        $byTxn = fetchGatewayStatus($savedTxnId);
-        if ($byTxn && !isStatusLookupMiss($byTxn)) {
-            $gateway = $byTxn;
+    $ids = array();
+    foreach (array(
+        $orderId,
+        gatewayText($order ?: array(), array('txn_id', 'txnId')),
+        $extraTxnId,
+    ) as $id) {
+        $id = trim((string) $id);
+        if ($id !== '' && !in_array($id, $ids, true)) {
+            $ids[] = $id;
         }
     }
-    if ((!$gateway || isStatusLookupMiss($gateway)) && $extraTxnId !== '' && $extraTxnId !== $orderId && $extraTxnId !== $savedTxnId) {
-        $byHook = fetchGatewayStatus($extraTxnId);
-        if ($byHook && !isStatusLookupMiss($byHook)) {
-            $gateway = $byHook;
+
+    $gateway = array();
+    $lookupMiss = true;
+    foreach ($ids as $id) {
+        $candidate = fetchGatewayStatus($id);
+        if (!$candidate) {
+            continue;
+        }
+        $candidateMiss = isStatusLookupMiss($candidate);
+        $candidateStatus = normalizeStatus(gatewayText($candidate, array('status')));
+        if ($candidateStatus === 'pending' && gatewayText($candidate, array('statusCode', 'status_code')) === '00') {
+            $candidateStatus = 'success';
+        }
+        if ($candidateStatus === 'success') {
+            return array($order, $candidate, false);
+        }
+        if (!$candidateMiss) {
+            $gateway = $candidate;
+            $lookupMiss = false;
+            if ($candidateStatus === 'failed') {
+                return array($order, $gateway, false);
+            }
+        } elseif ($lookupMiss) {
+            $gateway = $candidate;
         }
     }
-    return array($order, $gateway, isStatusLookupMiss($gateway));
+    return array($order, $gateway, $lookupMiss);
 }
 
 function confirmPaymentStatus()
@@ -1043,7 +1180,7 @@ function deliverMail($toEmail, $toName, $subject, $html, $alt, $replyEmail = '',
     $smtpPass = envVal('SMTP_PASS');
     $smtpPort = (int) envVal('SMTP_PORT', '465');
     $smtpSecure = envVal('SMTP_SECURE', 'smtps');
-    $fromEmail = $smtpUser !== '' ? $smtpUser : $toEmail;
+    $fromEmail = $smtpUser !== '' ? $smtpUser : envVal('MAIL_FROM', 'info@allday-shopping.com');
     $fromName = 'All Day Shopping';
     $autoload = findAutoload();
 
@@ -1088,13 +1225,19 @@ function deliverMail($toEmail, $toName, $subject, $html, $alt, $replyEmail = '',
         $headers[] = 'Reply-To: ' . $replyName . ' <' . $replyEmail . '>';
     }
     $headers[] = 'X-Mailer: PHP/' . phpversion();
-    return @mail($toEmail, '=?UTF-8?B?' . base64_encode($subject) . '?=', $html, implode("\r\n", $headers));
+    return @mail(
+        $toEmail,
+        '=?UTF-8?B?' . base64_encode($subject) . '?=',
+        $html,
+        implode("\r\n", $headers),
+        '-f' . $fromEmail
+    );
 }
 
 function sendOrderPaidEmail($order, $gateway)
 {
     $brandName = 'All Day Shopping';
-    $toEmail = 'info@allday-shopping.com';
+    $toEmail = envVal('ORDER_NOTIFY_EMAIL', 'info@allday-shopping.com');
     $border = '#e5e7eb';
     $brandColor = '#9333ea';
     $billing = isset($order['billing']) && is_array($order['billing']) ? $order['billing'] : array();
@@ -1165,11 +1308,12 @@ function sendOrderPaidEmail($order, $gateway)
     $html = wrapEmail($subject, $mainContent, $toEmail);
     $alt .= "Billing: {$name}\nEmail: {$email}\nAmount: {$amount}\n";
 
-    $sent = deliverMail($toEmail, $brandName, $subject, $html, $alt, $email, $name);
+    $sentMerchant = deliverMail($toEmail, $brandName, $subject, $html, $alt, $email, $name);
+    $sentCustomer = false;
 
-    if ($sent && $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $customerHtml = '<p>Hi ' . clean($name) . ',</p><p>We have received your payment of <strong>INR ' . clean($amount) . '</strong> for order <strong>' . clean($orderId) . '</strong>.</p><p>We will process and ship your order shortly.</p><p>Regards,<br><strong>' . clean($brandName) . ' Team</strong></p>';
-        deliverMail(
+        $sentCustomer = deliverMail(
             $email,
             $name,
             'Payment received - ' . $brandName . ' - ' . $orderId,
@@ -1178,12 +1322,12 @@ function sendOrderPaidEmail($order, $gateway)
         );
     }
 
-    return $sent;
+    return $sentMerchant || $sentCustomer;
 }
 
 function sendBarePaidEmail($orderId, $gateway)
 {
-    $toEmail = 'info@allday-shopping.com';
+    $toEmail = envVal('ORDER_NOTIFY_EMAIL', 'info@allday-shopping.com');
     $amount = isset($gateway['amount']) ? (string) $gateway['amount'] : '';
     $txnId = isset($gateway['txn_id']) ? (string) $gateway['txn_id'] : '';
     $subject = 'Paid order - All Day Shopping - ' . $orderId;

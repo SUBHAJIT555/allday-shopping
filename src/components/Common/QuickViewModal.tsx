@@ -155,10 +155,12 @@ const QuickViewModal = () => {
 
     if (isModalOpen) {
       document.addEventListener("mousedown", handleClickOutside);
+      document.body.style.overflow = "hidden";
     }
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      document.body.style.overflow = "";
 
       setQuantity(1);
     };
@@ -169,9 +171,9 @@ const QuickViewModal = () => {
   }
 
   return (
-    <div className="fixed left-0 top-0 z-99999 flex h-screen w-full items-start justify-center overflow-y-auto bg-slate-900/70 px-4 py-6 backdrop-blur-md no-scrollbar sm:items-center sm:px-8 sm:py-12 xl:py-16">
-      <div className="flex items-center justify-center">
-        <div className="modal-content relative w-full max-w-[1100px] overflow-hidden rounded-3xl border border-blue-light-4/60 bg-white shadow-[0_24px_60px_-12px_rgba(147,51,234,0.25)]">
+    <div className="fixed inset-0 z-99999 flex items-end justify-center bg-slate-900/70 sm:items-center sm:p-4">
+      <div className="flex h-[100dvh] w-full max-w-[1100px] items-stretch justify-center sm:h-auto sm:max-h-[90dvh]">
+        <div className="modal-content relative flex max-h-full w-full flex-col overflow-hidden rounded-t-3xl border border-blue-light-4/60 bg-white shadow-[0_24px_60px_-12px_rgba(147,51,234,0.25)] sm:rounded-3xl">
           <button
             onClick={handleCloseModal}
             aria-label="button for close modal"
@@ -194,9 +196,10 @@ const QuickViewModal = () => {
             </svg>
           </button>
 
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div className="flex flex-col lg:flex-row lg:items-stretch">
             <div className="w-full shrink-0 border-b border-blue-light-4/50 bg-gradient-to-b from-blue-light-5 to-white lg:w-1/2 lg:max-w-[526px] lg:border-b-0 lg:border-r">
-              <div className="relative flex min-h-[320px] items-center justify-center overflow-hidden p-6 sm:min-h-[420px] lg:min-h-[508px]">
+              <div className="relative flex max-h-[36vh] min-h-[180px] items-center justify-center overflow-hidden p-4 sm:max-h-none sm:min-h-[320px] sm:p-6 lg:min-h-[508px]">
                 <div
                   className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-br from-blue/5 via-transparent to-blue-light-4/25"
                   aria-hidden
@@ -231,7 +234,7 @@ const QuickViewModal = () => {
                         alt="products-details"
                         width={400}
                         height={400}
-                        className="mx-auto drop-shadow-lg transition-transform duration-300 hover:scale-105"
+                        className="mx-auto max-h-[32vh] w-auto object-contain drop-shadow-lg sm:max-h-[380px]"
                       />
                     )}
                   </div>
@@ -423,11 +426,11 @@ const QuickViewModal = () => {
               </div>
               </div>
 
-              <div className="mt-6 flex flex-wrap items-center gap-3">
+              <div className="mt-6 flex flex-wrap items-center gap-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
                 <button
                   disabled={quantity === 0 && true}
                   onClick={() => handleAddToCart()}
-                  className="inline-flex rounded-full bg-blue px-8 py-3 font-semibold text-white shadow-brand-md transition-all duration-200 hover:bg-blue-dark active:scale-95 disabled:opacity-50"
+                  className="inline-flex w-full rounded-full bg-blue px-8 py-3 font-semibold text-white shadow-brand-md transition-all duration-200 hover:bg-blue-dark active:scale-95 disabled:opacity-50 sm:w-auto"
                 >
                   Add to Cart
                 </button>
@@ -454,6 +457,7 @@ const QuickViewModal = () => {
                 </button>
               </div>
             </div>
+          </div>
           </div>
         </div>
       </div>

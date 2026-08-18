@@ -21,31 +21,42 @@ export default function SiteLayoutClient({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1000);
+    if (sessionStorage.getItem("ads_booted") === "1") {
+      setLoading(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      sessionStorage.setItem("ads_booted", "1");
+      setLoading(false);
+    }, 1000);
     return () => clearTimeout(timer);
   }, []);
-
-  if (loading) {
-    return <PreLoader />;
-  }
 
   return (
     <ThemeProvider>
       <ReduxProvider>
-        <CartModalProvider>
-          <ModalProvider>
-            <PreviewSliderProvider>
-              <Header />
-              {children}
-              <QuickViewModal />
-              <CartSidebarModal />
-              <PreviewSliderModal />
-            </PreviewSliderProvider>
-          </ModalProvider>
-        </CartModalProvider>
+        {loading ? (
+          <PreLoader />
+        ) : (
+          <CartModalProvider>
+            <ModalProvider>
+              <PreviewSliderProvider>
+                <Header />
+                {children}
+                <QuickViewModal />
+                <CartSidebarModal />
+                <PreviewSliderModal />
+              </PreviewSliderProvider>
+            </ModalProvider>
+          </CartModalProvider>
+        )}
       </ReduxProvider>
-      <ScrollToTop />
-      <Footer />
+      {!loading && (
+        <>
+          <ScrollToTop />
+          <Footer />
+        </>
+      )}
     </ThemeProvider>
   );
 }

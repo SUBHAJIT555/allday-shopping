@@ -13,15 +13,15 @@ const nextConfig = {
       beforeFiles: [
         {
           source: "/api/submit.php",
-          destination: "http://localhost/ecom/mail.php",
+          destination: "http://127.0.0.1:8088/submit.php",
         },
         {
           source: "/api/mpurse.php",
-          destination: "http://localhost/ecom/mpurse.php",
+          destination: "http://127.0.0.1:8088/mpurse.php",
         },
         {
           source: "/api/mpurse-webhook.php",
-          destination: "http://localhost/ecom/mpurse-webhook.php",
+          destination: "http://127.0.0.1:8088/mpurse-webhook.php",
         },
       ],
       afterFiles: [],

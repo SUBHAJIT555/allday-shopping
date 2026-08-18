@@ -10,6 +10,7 @@ import Billing from "./Billing";
 import PaymentMethod from "./PaymentMethod";
 
 const PENDING_ORDER_KEY = "ads_pending_order_id";
+const HOSTED_CHECKOUT_URL_KEY = "ads_hosted_checkout_url";
 
 function preferredUpiMode() {
   if (typeof navigator === "undefined") {
@@ -50,8 +51,6 @@ const Checkout = () => {
       paymentMethod: "upi",
     },
   });
-
-  const paymentMethod = watch("paymentMethod");
 
   const onSubmit = async (data: QuoteFormData) => {
     if (cartItems.length === 0) {
@@ -111,10 +110,12 @@ const Checkout = () => {
       sessionStorage.setItem(PENDING_ORDER_KEY, result.order_id);
 
       if (result.flow === "hosted" && result.checkout_url) {
+        sessionStorage.setItem(HOSTED_CHECKOUT_URL_KEY, result.checkout_url);
         window.location.replace(result.checkout_url);
         return;
       }
 
+      sessionStorage.removeItem(HOSTED_CHECKOUT_URL_KEY);
       window.location.replace("/pay?order_id=" + encodeURIComponent(result.order_id));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
@@ -122,12 +123,7 @@ const Checkout = () => {
     }
   };
 
-  const payLabel =
-    paymentMethod === "upi"
-      ? "Pay with UPI"
-      : paymentMethod === "card"
-        ? "Pay with card"
-        : "Pay with net banking";
+  const payLabel = "Pay with UPI";
 
   return (
     <>
@@ -148,7 +144,7 @@ const Checkout = () => {
               Checkout
             </h2>
             <p className="mt-2 max-w-xl text-custom-sm text-dark-4">
-              Enter your delivery details and choose UPI, card, or net banking.
+              Enter your delivery details and pay with UPI. Card and net banking will be added once mPurse enables them.
             </p>
           </div>
 

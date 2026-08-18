@@ -1,11 +1,11 @@
 "use client";
 import React, { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useCartModalContext } from "@/app/context/CartSidebarModalContext";
 import { removeItemFromCart, selectTotalPrice } from "@/redux/features/cart-slice";
 import { useAppSelector } from "@/redux/store";
 import { useSelector } from "react-redux";
 import SingleItem from "./SingleItem";
-import Link from "next/link";
 import EmptyCart from "./EmptyCart";
 
 function CartIcon({ className }: { className?: string }) {
@@ -26,36 +26,41 @@ function CartIcon({ className }: { className?: string }) {
 }
 
 const CartSidebarModal = () => {
+  const router = useRouter();
   const { isCartModalOpen, closeCartModal } = useCartModalContext();
   const cartItems = useAppSelector((state) => state.cartReducer.items);
   const totalPrice = useSelector(selectTotalPrice);
 
+  const goTo = (path: string) => {
+    router.push(path);
+    window.setTimeout(() => closeCartModal(), 80);
+  };
+
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      const target = event.target as HTMLElement;
-      if (!target.closest(".modal-content")) {
-        closeCartModal();
-      }
+    if (!isCartModalOpen) {
+      document.body.style.overflow = "";
+      return;
     }
 
-    if (isCartModalOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
+    document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.body.style.overflow = "";
     };
-  }, [isCartModalOpen, closeCartModal]);
+  }, [isCartModalOpen]);
 
   return (
     <div
-      className={`fixed left-0 top-0 z-99999 h-screen w-full overflow-y-auto bg-gray-900/50 backdrop-blur-sm ease-linear duration-300 no-scrollbar ${
-        isCartModalOpen ? "translate-x-0" : "translate-x-full"
+      className={`fixed inset-0 z-99999 bg-gray-900/50 backdrop-blur-sm duration-300 ${
+        isCartModalOpen ? "visible opacity-100" : "invisible opacity-0 pointer-events-none"
       }`}
+      onClick={closeCartModal}
     >
-      <div className="flex h-full items-stretch justify-end">
-        <div className="modal-content relative flex h-full w-full max-w-[500px] flex-col border-l border-blue-light-4/60 bg-gradient-to-b from-white via-white to-blue-light-5/40 shadow-[0_0_60px_-12px_rgba(147,51,234,0.25)]">
-          <div className="sticky top-0 z-10 border-b border-blue-light-4/50 bg-white/95 px-4 pb-5 pt-4 backdrop-blur-md sm:px-7.5 sm:pt-7.5 lg:px-8 lg:pt-8">
+      <div className="flex h-[100dvh] max-h-[100dvh] items-stretch justify-end">
+        <div
+          className="modal-content relative flex h-full w-full max-w-[500px] flex-col border-l border-blue-light-4/60 bg-gradient-to-b from-white via-white to-blue-light-5/40 shadow-[0_0_60px_-12px_rgba(147,51,234,0.25)]"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="shrink-0 border-b border-blue-light-4/50 bg-white px-4 pb-4 pt-4 sm:px-7.5 sm:pt-7.5 lg:px-8 lg:pt-8">
             <div
               className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-blue-light-5/80 to-transparent"
               aria-hidden
@@ -87,7 +92,7 @@ const CartSidebarModal = () => {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto bg-blue-light-5/20 px-4 py-5 no-scrollbar sm:px-7.5 lg:px-8">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-blue-light-5/20 px-4 py-5 sm:px-7.5 lg:px-8">
             {cartItems.length > 0 ? (
               <div className="flex flex-col gap-3.5">
                 {cartItems.map((item) => (
@@ -100,7 +105,7 @@ const CartSidebarModal = () => {
           </div>
 
           {cartItems.length > 0 && (
-            <div className="sticky bottom-0 border-t border-blue-light-4/50 bg-white/95 px-4 py-5 backdrop-blur-md sm:px-7.5 lg:px-8">
+            <div className="shrink-0 border-t border-blue-light-4/50 bg-white px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-7.5 lg:px-8">
               <div className="mb-4 flex items-center justify-between gap-4 rounded-2xl border border-blue-light-4/60 bg-gradient-to-r from-blue-light-5/80 to-white px-4 py-3.5 shadow-[0_8px_24px_-12px_rgba(147,51,234,0.12)]">
                 <p className="text-custom-sm font-semibold uppercase tracking-wide text-dark-4">
                   Subtotal
@@ -111,20 +116,20 @@ const CartSidebarModal = () => {
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row">
-                <Link
-                  onClick={() => closeCartModal()}
-                  href="/cart"
+                <button
+                  type="button"
+                  onClick={() => goTo("/cart")}
                   className="inline-flex w-full flex-1 items-center justify-center rounded-full border border-blue-light-4 bg-white px-6 py-3 text-custom-sm font-semibold text-dark transition-all duration-200 hover:border-blue hover:bg-blue-light-5 hover:text-blue"
                 >
                   View Cart
-                </Link>
-                <Link
-                  onClick={() => closeCartModal()}
-                  href="/checkout"
+                </button>
+                <button
+                  type="button"
+                  onClick={() => goTo("/checkout")}
                   className="inline-flex w-full flex-1 items-center justify-center rounded-full bg-blue px-6 py-3 text-custom-sm font-semibold text-white shadow-[0_8px_24px_-8px_rgba(147,51,234,0.45)] transition-all duration-200 hover:bg-blue-dark hover:shadow-[0_12px_32px_-8px_rgba(147,51,234,0.5)] active:scale-95"
                 >
                   Checkout
-                </Link>
+                </button>
               </div>
             </div>
           )}

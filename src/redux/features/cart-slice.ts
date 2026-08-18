@@ -5,7 +5,7 @@ type InitialState = {
   items: CartItem[];
 };
 
-type CartItem = {
+export type CartItem = {
   id: number;
   title: string;
   price: number;
@@ -59,6 +59,9 @@ export const cart = createSlice({
     removeAllItemsFromCart: (state) => {
       state.items = [];
     },
+    hydrateCart: (state, action: PayloadAction<CartItem[]>) => {
+      state.items = action.payload;
+    },
   },
 });
 
@@ -75,5 +78,6 @@ export const {
   removeItemFromCart,
   updateCartItemQuantity,
   removeAllItemsFromCart,
+  hydrateCart,
 } = cart.actions;
 export default cart.reducer;

@@ -1,3 +1,6 @@
+Options -Indexes
+DirectoryIndex index.html
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
@@ -10,9 +13,17 @@
   RewriteCond %{HTTPS} !=on
   RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-  # Next.js static export: /about -> about.html
-  RewriteCond %{REQUEST_FILENAME} !-d
+  # If /checkout/ (or /pay/, /cart/, …) is a folder without index.html,
+  # serve the sibling checkout.html so LiteSpeed does not list the directory.
+  RewriteCond %{REQUEST_URI} !^/api/
+  RewriteCond %{DOCUMENT_ROOT}/$1 -d
+  RewriteCond %{DOCUMENT_ROOT}/$1/index.html !-f
+  RewriteCond %{DOCUMENT_ROOT}/$1.html -f
+  RewriteRule ^(.+?)/?$ /$1.html [L,QSA]
+
+  # Next.js static export pretty URLs: /checkout → /checkout.html
+  RewriteCond %{REQUEST_URI} !^/api/
   RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME}.html -f
-  RewriteRule ^(.*)$ $1.html [L]
+  RewriteCond %{DOCUMENT_ROOT}/$1.html -f
+  RewriteRule ^(.+?)/?$ /$1.html [L,QSA]
 </IfModule>

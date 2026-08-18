@@ -144,21 +144,61 @@ const Header = () => {
       <div className="max-w-[1170px] mx-auto px-4 sm:px-7.5 xl:px-0">
         {/* <!-- header top start --> */}
         <div
-          className={`flex flex-col lg:flex-row gap-5 items-end lg:items-center xl:justify-between ease-out duration-200 ${stickyMenu ? "py-4" : "py-6"
+          className={`flex flex-col gap-3 lg:flex-row lg:items-center xl:justify-between ease-out duration-200 ${stickyMenu ? "py-3 lg:py-4" : "py-3 sm:py-4 lg:py-6"
             }`}
         >
           {/* <!-- header top left --> */}
-          <div className="xl:w-auto flex-col sm:flex-row w-full flex sm:justify-between sm:items-center gap-5 sm:gap-10">
-            <Link className="flex-shrink-0" href="/">
+          <div className="flex w-full items-center justify-between gap-3 lg:w-auto xl:gap-10">
+            <Link className="shrink-0" href="/">
               <Image
                 src="/images/logo/logo.svg"
-                alt="Logo"
+                alt="All Day Shopping"
                 width={219}
                 height={36}
+                priority
+                className="h-8 w-auto max-w-[148px] object-contain object-left sm:h-9 sm:max-w-[190px] xl:h-9 xl:max-w-[219px]"
               />
             </Link>
 
-            <div className="max-w-[475px] w-full" ref={searchRef}>
+            <div className="flex items-center gap-2 xl:hidden">
+              <button
+                type="button"
+                onClick={handleOpenCartModal}
+                className="flex items-center gap-2"
+                aria-label="Open cart"
+              >
+                <span className="relative inline-flex">
+                  <svg className="text-blue" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path d="M15.5433 9.5172C15.829 9.21725 15.8174 8.74252 15.5174 8.45686C15.2175 8.17119 14.7428 8.18277 14.4571 8.48272L12.1431 10.9125L11.5433 10.2827C11.2576 9.98277 10.7829 9.97119 10.483 10.2569C10.183 10.5425 10.1714 11.0173 10.4571 11.3172L11.6 12.5172C11.7415 12.6658 11.9378 12.75 12.1431 12.75C12.3483 12.75 12.5446 12.6658 12.6862 12.5172L15.5433 9.5172Z" fill="currentColor" />
+                    <path fillRule="evenodd" clipRule="evenodd" d="M1.29266 2.7512C1.43005 2.36044 1.8582 2.15503 2.24896 2.29242L2.55036 2.39838C3.16689 2.61511 3.69052 2.79919 4.10261 3.00139C4.54324 3.21759 4.92109 3.48393 5.20527 3.89979C5.48725 4.31243 5.60367 4.76515 5.6574 5.26153C5.66124 5.29706 5.6648 5.33321 5.66809 5.36996L17.1203 5.36996C17.9389 5.36995 18.7735 5.36993 19.4606 5.44674C19.8103 5.48584 20.1569 5.54814 20.4634 5.65583C20.7639 5.76141 21.0942 5.93432 21.3292 6.23974C21.711 6.73613 21.7777 7.31414 21.7416 7.90034C21.7071 8.45845 21.5686 9.15234 21.4039 9.97723L21.3935 10.0295L21.3925 10.0341L20.8836 12.5033C20.7339 13.2298 20.6079 13.841 20.4455 14.3231C20.2731 14.8346 20.0341 15.2842 19.6076 15.6318C19.1811 15.9793 18.6925 16.1226 18.1568 16.1882C17.6518 16.25 17.0278 16.25 16.2862 16.25L10.8804 16.25C9.53464 16.25 8.44479 16.25 7.58656 16.1283C6.69032 16.0012 5.93752 15.7285 5.34366 15.1022C4.79742 14.526 4.50529 13.9144 4.35897 13.0601C4.22191 12.2598 4.20828 11.2125 4.20828 9.75996V7.03832C4.20828 6.29837 4.20726 5.80316 4.16611 5.42295C4.12678 5.0596 4.05708 4.87818 3.96682 4.74609C3.87876 4.61723 3.74509 4.4968 3.44186 4.34802C3.11902 4.18961 2.68026 4.03406 2.01266 3.79934L1.75145 3.7075C1.36068 3.57012 1.15527 3.14197 1.29266 2.7512ZM5.70828 6.86996L5.70828 9.75996C5.70828 11.249 5.72628 12.1578 5.83744 12.8068C5.93933 13.4018 6.11202 13.7324 6.43219 14.0701C6.70473 14.3576 7.08235 14.5418 7.79716 14.6432C8.53783 14.7482 9.5209 14.75 10.9377 14.75H16.2406C17.0399 14.75 17.5714 14.7487 17.9746 14.6993C18.3573 14.6525 18.5348 14.571 18.66 14.469C18.7853 14.3669 18.9009 14.2095 19.024 13.8441C19.1537 13.4592 19.2623 12.9389 19.4237 12.156L19.9225 9.73591L19.9229 9.73369C20.1005 8.84376 20.217 8.2515 20.2444 7.80793C20.2704 7.38648 20.2043 7.23927 20.1429 7.15786C20.1367 7.15259 20.0931 7.11565 19.9661 7.07101C19.8107 7.01639 19.5895 6.97049 19.2939 6.93745C18.6991 6.87096 17.9454 6.86996 17.089 6.86996H5.70828Z" fill="currentColor" />
+                  </svg>
+                  <span className="absolute -right-2 -top-2.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-blue text-2xs font-medium text-white">
+                    {product.length}
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                id="Toggle"
+                aria-label={navigationOpen ? "Close menu" : "Open menu"}
+                aria-expanded={navigationOpen}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-3 bg-white text-dark"
+                onClick={() => setNavigationOpen(!navigationOpen)}
+              >
+                {navigationOpen ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="w-full max-w-[475px]" ref={searchRef}>
               <form onSubmit={handleSearchSubmit}>
                 <div className="flex items-center">
                   <CustomSelect
@@ -238,10 +278,9 @@ const Header = () => {
                 </div>
               </form>
             </div>
-          </div>
 
           {/* <!-- header top right --> */}
-          <div className="flex w-full lg:w-auto items-center gap-7.5">
+          <div className="hidden w-full items-center gap-7.5 xl:flex xl:w-auto">
             <div className="hidden xl:flex items-center gap-3.5">
               {/* <svg
                 width="24"
@@ -281,7 +320,7 @@ const Header = () => {
             {/* <!-- divider --> */}
             {/* <span className="hidden xl:block w-px h-7.5 bg-gray-4"></span> */}
 
-            <div className="flex w-full lg:w-auto justify-between items-center gap-5">
+            <div className="flex w-full items-center justify-end gap-5 xl:w-auto">
               <div className="flex items-center gap-5">
                 <button
                   onClick={handleOpenCartModal}
@@ -335,61 +374,22 @@ const Header = () => {
                   </div>
                 </button>
               </div>
-
-              {/* <!-- Hamburger Toggle BTN --> */}
-              <button
-                id="Toggle"
-                aria-label="Toggler"
-                className="xl:hidden block"
-                onClick={() => setNavigationOpen(!navigationOpen)}
-              >
-                <span className="block relative cursor-pointer w-5.5 h-5.5">
-                  <span className="du-block absolute right-0 w-full h-full">
-                    <span
-                      className={`block relative top-0 left-0 bg-dark rounded-sm w-0 h-0.5 my-1 ease-in-out duration-200 delay-[0] ${!navigationOpen && "!w-full delay-300"
-                        }`}
-                    ></span>
-                    <span
-                      className={`block relative top-0 left-0 bg-dark rounded-sm w-0 h-0.5 my-1 ease-in-out duration-200 delay-150 ${!navigationOpen && "!w-full delay-400"
-                        }`}
-                    ></span>
-                    <span
-                      className={`block relative top-0 left-0 bg-dark rounded-sm w-0 h-0.5 my-1 ease-in-out duration-200 delay-200 ${!navigationOpen && "!w-full delay-500"
-                        }`}
-                    ></span>
-                  </span>
-
-                  <span className="block absolute right-0 w-full h-full rotate-45">
-                    <span
-                      className={`block bg-dark rounded-sm ease-in-out duration-200 delay-300 absolute left-2.5 top-0 w-0.5 h-full ${!navigationOpen && "!h-0 delay-[0] "
-                        }`}
-                    ></span>
-                    <span
-                      className={`block bg-dark rounded-sm ease-in-out duration-200 delay-400 absolute left-0 top-2.5 w-full h-0.5 ${!navigationOpen && "!h-0 dealy-200"
-                        }`}
-                    ></span>
-                  </span>
-                </span>
-              </button>
-              {/* //   <!-- Hamburger Toggle BTN --> */}
             </div>
           </div>
         </div>
         {/* <!-- header top end --> */}
       </div>
 
-      <div className="border-t border-gray-3/60">
+      <div className={`border-t border-gray-3/60 ${navigationOpen ? "block" : "hidden"} xl:block`}>
         <div className="max-w-[1170px] mx-auto px-4 sm:px-7.5 xl:px-0">
           <div className="flex items-center justify-between">
             {/* <!--=== Main Nav Start ===--> */}
             <div
-              className={`w-[288px] absolute right-4 top-full xl:static xl:w-auto h-0 xl:h-auto invisible xl:visible xl:flex items-center justify-between ${navigationOpen &&
-                `!visible border border-gray-3/60 bg-white/30 shadow-lg backdrop-blur-xl !h-auto max-h-[400px] overflow-y-scroll rounded-md p-5`
-                }`}
+              className="w-full py-4 xl:static xl:w-auto xl:py-0 xl:flex xl:items-center xl:justify-between"
             >
               {/* <!-- Main Nav Start --> */}
               <nav>
-                <ul className="flex xl:items-center flex-col xl:flex-row gap-5 xl:gap-6">
+                <ul className="flex xl:items-center flex-col xl:flex-row gap-4 xl:gap-6">
                   {menuData.map((menuItem, i) =>
                     menuItem.submenu ? (
                       <Dropdown
@@ -404,7 +404,8 @@ const Header = () => {
                       >
                         <Link
                           href={menuItem.path}
-                          className={`hover:text-blue text-custom-sm font-medium text-dark flex ${stickyMenu ? "xl:py-4" : "xl:py-6"
+                          onClick={() => setNavigationOpen(false)}
+                          className={`hover:text-blue text-custom-sm font-medium text-dark flex py-1 ${stickyMenu ? "xl:py-4" : "xl:py-6"
                             }`}
                         >
                           {menuItem.title}
