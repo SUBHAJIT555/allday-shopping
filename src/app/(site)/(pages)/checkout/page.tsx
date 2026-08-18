@@ -4,7 +4,7 @@ import { siteConfig } from "@/config/site";
 
 export const metadata = createPageMetadata({
   title: "Checkout",
-  description: `Complete your order at ${siteConfig.brand.name}. Secure checkout with UPI, cards, and cash on delivery.`,
+  description: `Complete your order at ${siteConfig.brand.name}. Secure checkout with UPI, cards, and net banking.`,
   path: "/checkout",
 });
 

@@ -1,66 +1,83 @@
 import React from "react";
-import Image from "next/image";
+import { UseFormRegister, FieldErrors, UseFormWatch } from "react-hook-form";
+import { QuoteFormData } from "@/lib/schemas";
 
 const PAYMENT_OPTIONS = [
-  { id: "cash", value: "cash", label: "Cash on delivery", icon: "/images/checkout/cash.svg", iconSize: { w: 21, h: 21 } },
-  { id: "upi", value: "upi", label: "UPI", icon: "/images/checkout/bank.svg", iconSize: { w: 29, h: 12 } },
-  { id: "online_banking", value: "online_banking", label: "Online Banking", icon: "/images/checkout/bank.svg", iconSize: { w: 29, h: 12 } },
+  { id: "upi", value: "upi", label: "UPI", hint: "Pay with any UPI ID" },
+  { id: "card", value: "card", label: "Debit / Credit card", hint: "Visa, Mastercard, RuPay" },
+  { id: "netbanking", value: "netbanking", label: "Net banking", hint: "All major Indian banks" },
 ] as const;
 
 type PaymentMethodProps = {
-  value?: string;
-  onChange?: (value: string) => void;
+  register: UseFormRegister<QuoteFormData>;
+  errors: FieldErrors<QuoteFormData>;
+  watch: UseFormWatch<QuoteFormData>;
 };
 
-const PaymentMethod = ({ value = "cash", onChange }: PaymentMethodProps) => {
+const PaymentMethod = ({ register, errors, watch }: PaymentMethodProps) => {
+  const method = watch("paymentMethod");
+
   return (
-    <div className="bg-white shadow-1 rounded-[10px] mt-7.5">
-      <div className="border-b border-gray-3 py-5 px-4 sm:px-8.5">
-        <h3 className="font-medium text-xl text-dark">Payment Method</h3>
+    <div className="mt-6 overflow-hidden rounded-2xl border border-blue-light-4/60 bg-white shadow-[0_8px_30px_-12px_rgba(147,51,234,0.1)]">
+      <div className="border-b border-blue-light-4/50 bg-gradient-to-r from-blue-light-5/80 to-white px-5 py-4 sm:px-6">
+        <h3 className="font-bold text-dark">Payment method</h3>
+        <p className="mt-0.5 text-custom-sm text-dark-4">Choose how you want to pay</p>
       </div>
 
-      <div className="p-4 sm:p-8.5">
-        <div className="flex flex-col gap-3">
-          {PAYMENT_OPTIONS.map((opt) => (
-            <label
-              key={opt.id}
-              htmlFor={opt.id}
-              className="flex cursor-pointer select-none items-center gap-4"
-            >
-              <div className="relative">
-                <input
-                  type="radio"
-                  name="paymentMethod"
-                  id={opt.id}
-                  value={opt.value}
-                  className="sr-only"
-                  checked={value === opt.value}
-                  onChange={() => onChange?.(opt.value)}
-                />
-                <div
-                  className={`flex h-4 w-4 items-center justify-center rounded-full ${
-                    value === opt.value ? "border-4 border-blue" : "border border-gray-4"
-                  }`}
-                />
-              </div>
+      <div className="space-y-3 p-5 sm:p-6">
+        {PAYMENT_OPTIONS.map((opt) => (
+          <label
+            key={opt.id}
+            htmlFor={opt.id}
+            className={`flex cursor-pointer items-center gap-4 rounded-2xl border px-4 py-3.5 transition-all duration-200 ${
+              method === opt.value
+                ? "border-blue bg-blue-light-5"
+                : "border-blue-light-4 bg-white hover:border-blue"
+            }`}
+          >
+            <input
+              type="radio"
+              id={opt.id}
+              value={opt.value}
+              className="sr-only"
+              {...register("paymentMethod")}
+            />
+            <span
+              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${
+                method === opt.value ? "border-4 border-blue" : "border border-gray-4"
+              }`}
+            />
+            <span>
+              <span className="block text-sm font-semibold text-dark">{opt.label}</span>
+              <span className="block text-custom-xs text-dark-4">{opt.hint}</span>
+            </span>
+          </label>
+        ))}
 
-              <div
-                className={`rounded-md border-[0.5px] py-3.5 px-5 ease-out duration-200 hover:bg-gray-2 hover:border-transparent hover:shadow-none min-w-[240px] ${
-                  value === opt.value ? "border-transparent bg-gray-2" : " border-gray-4 shadow-1"
-                }`}
-              >
-                <div className="flex items-center">
-                  <div className="pr-2.5">
-                    <Image src={opt.icon} alt={opt.label} width={opt.iconSize.w} height={opt.iconSize.h} />
-                  </div>
-                  <div className="border-l border-gray-4 pl-2.5">
-                    <p>{opt.label}</p>
-                  </div>
-                </div>
-              </div>
+        {method === "upi" && (
+          <div className="pt-2">
+            <label htmlFor="upiId" className="mb-2 block text-custom-sm font-semibold text-dark">
+              UPI ID <span className="text-red">*</span>
             </label>
-          ))}
-        </div>
+            <input
+              type="text"
+              id="upiId"
+              autoComplete="off"
+              placeholder="yourname@okaxis"
+              {...register("upiId")}
+              className={`w-full rounded-full border bg-white px-4 py-2.5 text-sm outline-none transition-all duration-200 placeholder:text-dark-4 focus:border-blue focus:ring-2 focus:ring-blue-light-4 ${
+                errors.upiId ? "border-red" : "border-blue-light-4"
+              }`}
+            />
+            {errors.upiId ? (
+              <p className="mt-1 text-custom-sm text-red">{errors.upiId.message}</p>
+            ) : (
+              <p className="mt-1 text-custom-xs text-dark-4">
+                Example: 9876543210@ybl, name@okaxis, name@paytm
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

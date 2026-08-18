@@ -1,6 +1,11 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
+  # Never serve env or order snapshots
+  RewriteRule (^|/)\.env$ - [F,L]
+  RewriteRule (^|/)mpurse\.env$ - [F,L]
+  RewriteRule ^api/data/ - [F,L]
+
   # Force HTTPS (install SSL in cPanel first)
   RewriteCond %{HTTPS} !=on
   RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]

@@ -1,24 +1,21 @@
 "use client";
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useAppSelector, AppDispatch } from "@/redux/store";
-import { useDispatch } from "react-redux";
-import {
-  selectCartItems,
-  selectTotalPrice,
-  removeAllItemsFromCart,
-} from "@/redux/features/cart-slice";
+import { useAppSelector } from "@/redux/store";
+import { selectCartItems, selectTotalPrice } from "@/redux/features/cart-slice";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { quoteSchema, type QuoteFormData } from "@/lib/schemas";
 import Breadcrumb from "../Common/Breadcrumb";
 import Billing from "./Billing";
+import PaymentMethod from "./PaymentMethod";
 
-function QuoteIcon({ className }: { className?: string }) {
+const PENDING_ORDER_KEY = "ads_pending_order_id";
+
+function LockIcon({ className }: { className?: string }) {
   return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className={className} aria-hidden>
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" className={className} aria-hidden>
       <path
-        d="M3 14.5V9.2C3 6.4 4.6 4.8 7.8 4.5V7.1C6.2 7.3 5.4 8.1 5.4 9.2H7.8V14.5H3ZM12.4 14.5V9.2C12.4 6.4 14 4.8 17.2 4.5V7.1C15.6 7.3 14.8 8.1 14.8 9.2H17.2V14.5H12.4Z"
+        d="M15.5 8.5H14.75V6.25C14.75 3.63 12.62 1.5 10 1.5C7.38 1.5 5.25 3.63 5.25 6.25V8.5H4.5C3.67 8.5 3 9.17 3 10V16.5C3 17.33 3.67 18 4.5 18H15.5C16.33 18 17 17.33 17 16.5V10C17 9.17 16.33 8.5 15.5 8.5ZM6.75 6.25C6.75 4.45 8.2 3 10 3C11.8 3 13.25 4.45 13.25 6.25V8.5H6.75V6.25Z"
         fill="currentColor"
       />
     </svg>
@@ -26,8 +23,6 @@ function QuoteIcon({ className }: { className?: string }) {
 }
 
 const Checkout = () => {
-  const router = useRouter();
-  const dispatch = useDispatch<AppDispatch>();
   const cartItems = useAppSelector(selectCartItems);
   const total = useAppSelector(selectTotalPrice);
   const [submitting, setSubmitting] = useState(false);
@@ -36,10 +31,17 @@ const Checkout = () => {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<QuoteFormData>({
     resolver: zodResolver(quoteSchema),
+    defaultValues: {
+      paymentMethod: "upi",
+      upiId: "",
+    },
   });
+
+  const paymentMethod = watch("paymentMethod");
 
   const onSubmit = async (data: QuoteFormData) => {
     if (cartItems.length === 0) {
@@ -57,42 +59,69 @@ const Checkout = () => {
         price: item.discountedPrice,
       }));
 
-      const formData = new FormData();
-      formData.append("formType", "quote");
-      formData.append("billing_first_name", data.firstName);
-      formData.append("billing_last_name", data.lastName);
-      formData.append("billing_email", data.email);
-      formData.append("billing_phone", data.phone);
-      formData.append("billing_address", data.address);
-      formData.append("billing_town", data.town);
-      formData.append("billing_state", data.state || "");
-      formData.append("cart_items", JSON.stringify(orderItems));
-      formData.append("cart_total", total.toString());
-      formData.append("order_total", total.toString());
-      if (data.notes) formData.append("notes", data.notes);
-
-      const res = await fetch("/api/submit.php", {
+      const res = await fetch("/api/mpurse.php", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_session",
+          payment_method: data.paymentMethod,
+          upi_id: data.upiId || "",
+          billing_first_name: data.firstName,
+          billing_last_name: data.lastName,
+          billing_email: data.email,
+          billing_phone: data.phone,
+          billing_address: data.address,
+          billing_town: data.town,
+          billing_state: data.state || "",
+          billing_postcode: data.postcode || "",
+          notes: data.notes || "",
+          cart_items: orderItems,
+        }),
       });
 
-      const result = await res.json();
-
-      if (!res.ok) {
-        throw new Error(result.error || "Failed to submit quote request");
+      const raw = await res.text();
+      let result: {
+        error?: string;
+        order_id?: string;
+        flow?: string;
+        checkout_url?: string;
+      } = {};
+      try {
+        result = raw ? JSON.parse(raw) : {};
+      } catch {
+        throw new Error(
+          "Payment PHP is not running. Keep yarn dev open and in another terminal run: yarn php:api"
+        );
       }
 
-      dispatch(removeAllItemsFromCart());
-      router.push("/mail-success");
+      if (!res.ok || !result?.order_id) {
+        throw new Error(result.error || "Failed to start payment");
+      }
+
+      sessionStorage.setItem(PENDING_ORDER_KEY, result.order_id);
+
+      if (result.flow === "hosted" && result.checkout_url) {
+        window.location.replace(result.checkout_url);
+        return;
+      }
+
+      window.location.replace("/pay?order_id=" + encodeURIComponent(result.order_id));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setSubmitting(false);
     }
   };
 
+  const payLabel =
+    paymentMethod === "upi"
+      ? "Pay with UPI"
+      : paymentMethod === "card"
+        ? "Pay with card"
+        : "Pay with net banking";
+
   return (
     <>
-      <Breadcrumb title={"Request for Quote"} pages={["request for quote"]} />
+      <Breadcrumb title={"Checkout"} pages={["checkout"]} />
       <section className="relative overflow-hidden bg-gradient-to-b from-blue-light-5/50 via-gray-1 to-gray-1 py-10 lg:py-12">
         <div
           className="pointer-events-none absolute -right-32 top-0 h-64 w-64 rounded-full bg-blue/10 blur-3xl"
@@ -102,14 +131,14 @@ const Checkout = () => {
         <div className="relative z-1 mx-auto w-full max-w-[1170px] px-4 sm:px-8 xl:px-0">
           <div className="mb-8">
             <span className="mb-2 inline-flex items-center gap-2 rounded-full border border-blue-light-4 bg-blue-light-5 px-2.5 py-1 text-custom-xs font-semibold text-blue-dark">
-              <QuoteIcon className="text-blue" />
+              <LockIcon className="text-blue" />
               Secure checkout
             </span>
             <h2 className="text-2xl font-bold tracking-tight text-dark sm:text-3xl xl:text-heading-5">
-              Request for Quote
+              Checkout
             </h2>
             <p className="mt-2 max-w-xl text-custom-sm text-dark-4">
-              Fill in your details and we will get back to you with a quote.
+              Enter your delivery details and choose UPI, card, or net banking.
             </p>
           </div>
 
@@ -117,6 +146,7 @@ const Checkout = () => {
             <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
               <div className="w-full lg:max-w-[670px]">
                 <Billing register={register} errors={errors} />
+                <PaymentMethod register={register} errors={errors} watch={watch} />
 
                 <div className="mt-6 overflow-hidden rounded-2xl border border-blue-light-4/60 bg-white shadow-[0_8px_30px_-12px_rgba(147,51,234,0.1)]">
                   <div className="border-b border-blue-light-4/50 bg-gradient-to-r from-blue-light-5/80 to-white px-5 py-4 sm:px-6">
@@ -186,7 +216,7 @@ const Checkout = () => {
                   disabled={submitting || cartItems.length === 0}
                   className="mt-6 flex w-full items-center justify-center rounded-full bg-blue px-6 py-3.5 text-custom-sm font-semibold text-white shadow-[0_8px_24px_-8px_rgba(147,51,234,0.45)] transition-all duration-200 hover:bg-blue-dark hover:shadow-[0_12px_32px_-8px_rgba(147,51,234,0.5)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {submitting ? "Processing…" : "Ask for Quote"}
+                  {submitting ? "Processing…" : payLabel}
                 </button>
               </div>
             </div>

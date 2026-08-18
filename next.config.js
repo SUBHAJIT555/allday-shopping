@@ -19,6 +19,10 @@ const nextConfig = {
           source: '/api/submit.php',
           destination: 'http://localhost/ecom/mail.php',
         },
+        {
+          source: '/api/mpurse.php',
+          destination: 'http://127.0.0.1:8088/mpurse.php',
+        },
       ],
       afterFiles: [],
       fallback: [],
