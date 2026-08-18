@@ -9,7 +9,6 @@ export const siteConfig = {
       legal: "info@allday-shopping.com",
       general: "info@allday-shopping.com",
     },
-    phone: "+91 79770 98990",
     legalName: "KANIKA ENTERPRISES CHETAN",
     address: {
       street: "Shop No. C-A12, Shudhanshu Chambers, Near Railway Station",

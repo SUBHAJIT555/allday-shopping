@@ -160,21 +160,17 @@ function FooterContactBody({
         <span className={iconWrapClass}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
             <path
-              fillRule="evenodd"
-              clipRule="evenodd"
-              d="M4.7177 3.0919C5.94388 1.80096 7.9721 2.04283 8.98569 3.47641L10.2467 5.25989C11.0574 6.40656 10.9889 8.00073 10.0214 9.0194L9.7765 9.27719C9.77582 9.27897 9.7751 9.2809 9.77436 9.28299C9.76142 9.31935 9.7287 9.43513 9.7609 9.65489C9.82765 10.1104 10.1793 11.0361 11.607 12.5392C13.0391 14.0469 13.9078 14.4023 14.3103 14.4677C14.484 14.4959 14.5748 14.4714 14.6038 14.4612L15.0124 14.031C15.8862 13.111 17.2485 12.9298 18.347 13.5621L20.2575 14.6617C21.8904 15.6016 22.2705 17.9008 20.9655 19.2747L19.545 20.7703C19.1016 21.2371 18.497 21.6355 17.75 21.7092C15.9261 21.8893 11.701 21.6548 7.27161 16.9915C3.13844 12.64 2.35326 8.85513 2.25401 7.00591L2.92011 6.97016L2.25401 7.00591C2.20497 6.09224 2.61224 5.30855 3.1481 4.7444L4.7177 3.0919Z"
-              fill="currentColor"
+              d="M12 8V12L15 15"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
           </svg>
         </span>
         <div className="lg:text-right">
-          <a
-            href={`tel:${siteConfig.brand.phone.replace(/\s/g, "")}`}
-            className="block text-custom-sm font-semibold text-dark transition-colors hover:text-blue"
-          >
-            {siteConfig.brand.phone}
-          </a>
-          <span className="mt-0.5 block text-custom-sm text-dark-4">
+          <span className="block text-custom-sm font-semibold text-dark">
             {siteConfig.brand.businessHours}
           </span>
         </div>

@@ -47,7 +47,7 @@ const FAQs = () => {
     },
     {
       question: `How do I contact ${brandName}?`,
-      answer: `Reach us by email at ${siteConfig.brand.email.general}, phone at ${siteConfig.brand.phone}, or the contact form on our website. We're here to help during ${siteConfig.brand.businessHours}.`,
+      answer: `Reach us by email at ${siteConfig.brand.email.general} or the contact form on our website. We're here to help during ${siteConfig.brand.businessHours}.`,
     },
     {
       question: "Do you have offers or discounts?",

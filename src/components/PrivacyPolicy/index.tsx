@@ -181,9 +181,6 @@ const PrivacyPolicy = () => {
                   <p className="mb-2">
                     <strong className="text-dark">Email:</strong> {siteConfig.brand.email.privacy}
                   </p>
-                  <p className="mb-2">
-                    <strong className="text-dark">Phone:</strong> {siteConfig.brand.phone}
-                  </p>
                   <p>
                     <strong className="text-dark">Address:</strong> {siteConfig.brand.address.full}
                   </p>
